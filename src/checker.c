@@ -15,6 +15,7 @@ void type_error(struct node *parent, struct type*a, struct type *b)
 
 void node_check(struct node *n, struct symbol_table *scope)
 {
+	return;
 	if (!n) return;
 	switch (n->type) {
 		case node_ident://deliberate fallthrough

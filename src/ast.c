@@ -53,11 +53,104 @@ void node_free(struct node *n)
 			node_free(LOOP(n)->body);
 			node_free(LOOP(n)->iter);
 			break;
+		case node_func:
+			free(FUNC(n)->ident);
+			type_free(FUNC(n)->ftype);
+			node_free(FUNC(n)->body);
+			break;
 	}
 
 	free(n->inf);
 	free(n->child);
 	free(n);
+}
+
+void node_tree(struct node *n)
+{
+	static char depth_str[256] = {0};
+	static int  di = 0;
+	if (!n) return;
+	if (di)
+		printf("%.*s`--", di-1, depth_str);
+	switch (n->type) {
+		case node_ident: printf("ident: %s\n",IDENT(n)); break;
+		case node_cnum: printf("cnum: %ld\n",CNUM(n)); break;
+		case node_unop:
+			printf("unop \'%s\'\n", operator_str[UNOP(n)->op]);
+			depth_str[di++] = ' ';
+			depth_str[di++] = ' ';
+			node_tree(UNOP(n)->term);
+			di -= 2;
+			break;
+		case node_binop:
+			printf("binop \'%s\':\n", operator_str[BINOP(n)->op]);
+			depth_str[di++] = ' ';
+			depth_str[di++] = '|';
+			node_tree(BINOP(n)->lhs);
+			depth_str[di-1] = ' ';
+			node_tree(BINOP(n)->rhs);
+			di -= 2;
+			break;
+		case node_block:
+			printf("block:\n");
+			depth_str[di++] = ' ';
+			depth_str[di++] = '|';
+			for (int i = 0; i < BLOCK(n)->num_stmt; i++) {
+				if ((i+1) >= BLOCK(n)->num_stmt) depth_str[di-1] = ' ';
+				node_tree(BLOCK(n)->stmt_list[i]);
+			}
+			di -= 2;
+			break;
+		case node_cond:
+			printf("conditional:\n" );
+			depth_str[di++] = '|';
+			depth_str[di++] = ' ';
+			node_tree(COND(n)->condition);
+			if (!COND(n)->otherwise) depth_str[di-2] = ' ';
+			node_tree(COND(n)->body);
+			depth_str[di-2] = ' ';
+			if (COND(n)->otherwise)
+				node_tree(COND(n)->otherwise);
+			di -= 2;;
+			break;
+		case node_loop:
+			printf("loop:\n");
+			depth_str[di++] = ' ';
+			depth_str[di++] = '|';
+			node_tree(LOOP(n)->init);
+			node_tree(LOOP(n)->condition);
+			if (!LOOP(n)->body)
+				depth_str[di-1] = ' ';
+			node_tree(LOOP(n)->iter);
+			depth_str[di-1] = ' ';
+			node_tree(LOOP(n)->body);
+			di-=2;
+			break;
+		case node_func:
+			printf("func %s: ", FUNC(n)->ident);
+			print_type(FUNC(n)->ftype);
+			printf("\n");
+			depth_str[di++] = ' ';
+			depth_str[di++] = ' ';
+			node_tree(FUNC(n)->body);
+			di-=2;
+			break;
+		case node_decl:
+			printf("decl:");
+			print_type(DECL(n)->type);
+			printf(" %s\n", DECL(n)->ident);
+			depth_str[di++] = ' ';
+			depth_str[di++] = ' ';
+			if (DECL(n)->initializer) {
+				node_tree(DECL(n)->initializer);
+			}
+			di -= 2;
+			break;
+		case node_empty:
+			printf("empty\n");
+			break;
+		default: break;
+	}
 }
 
 void node_print(struct node *n)

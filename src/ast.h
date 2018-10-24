@@ -18,6 +18,7 @@
 #define BINOP(n) ((struct binop*)n->child)
 #define UNOP(n) ((struct unop*)n->child)
 #define DECL(n) ((struct declaration*)n->child)
+#define FUNC(n) ((struct func*)n->child)
 #define IDENT(n) (((union value*)n->child)->ident)
 #define CNUM(n) (((union value*)n->child)->cnum)
 
@@ -31,7 +32,9 @@ enum node_type {
 	node_cnum,
 	node_unop,
 	node_binop,
+	node_fcall,
 	/*Statement*/
+	node_func,
 	node_block,
 	node_cond,
 	node_loop,
@@ -51,6 +54,7 @@ enum node_type {
  *       +
  *     /   \
  *    i    10
+ * My intention was to have simple, understandable trees
  * */
 struct node {
 	int type;
@@ -66,6 +70,13 @@ struct node {
  * primary: constant-int | identifier ...
  * union { constant-int, identifier }
  * */
+
+/*Function definition*/
+struct func {
+	char *ident;
+	struct type *ftype;
+	struct stmt *body;
+};
 
 struct block {
 	struct stmt **stmt_list;
@@ -202,6 +213,7 @@ struct stmt *loop_init(struct expr *init, struct expr *cond, struct expr *iter, 
 struct stmt *cond_init(struct expr *cond, struct stmt *body, struct stmt *other);
 struct expr *value_ident(const char *ident);
 struct expr *value_num(const char *num);
+void node_tree(struct node *n);
 void node_print(struct node *n);
 void node_free(struct node *n);
 

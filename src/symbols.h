@@ -5,10 +5,8 @@
 
 /*Because the symbol tables operate on a per scope level,
  * the small amount of average local variables just isn't worth
- * amortizing the cost of using an efficient average case
+ * amortizing the cost of using an efficient average lookup
  * algorithm, I will just be using arrays for now.*/
-
-/**/
 struct symbol {
 	char *identifier;
 	struct type * type;

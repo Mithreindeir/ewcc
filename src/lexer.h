@@ -39,6 +39,7 @@ enum token_type {
 	t_dec,
 	t_while,
 	t_for,
+	t_comma,
 	t_semic,
 };
 
@@ -49,7 +50,7 @@ struct token_pair {
 };
 
 /*All constant tokens are in this array*/
-extern const struct token_pair token_pairs[29];
+extern const struct token_pair token_pairs[30];
 
 struct token {
 	char *tok;

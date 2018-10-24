@@ -36,6 +36,14 @@ void type_free(struct type *head)
 {
 	if (!head) return;
 	type_free(head->next);
+	if (head->type == type_fcn) {
+		for (int i = 0; i < head->info.fcn.paramc; i++) {
+			free(head->info.fcn.paramv[i]);
+			type_free(head->info.fcn.paramt[i]);
+		}
+		free(head->info.fcn.paramv);
+		free(head->info.fcn.paramt);
+	}
 	free(head);
 }
 
@@ -58,9 +66,14 @@ void print_type(struct type *head)
 			printf(")");
 			break;
 		case type_fcn:
-			printf("fcn(");
+			printf("fcn( ");
+			for (int i = 0; i < head->info.fcn.paramc; i++) {
+				printf("%s: ", head->info.fcn.paramv[i]);
+				print_type(head->info.fcn.paramt[i]);
+				if ((i+1) < head->info.fcn.paramc) printf(", ");
+			}
+			printf(") -> ");
 			print_type(head->next);
-			printf(")");
 			break;
 	}
 }

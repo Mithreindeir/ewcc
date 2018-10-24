@@ -49,12 +49,13 @@ struct stmt *parse_block(struct parser *p);
 struct stmt *parse_cond(struct parser *p);
 struct stmt *parse_loop(struct parser *p);
 struct stmt *parse_decl(struct parser *p);
+struct declaration *parse_param(struct parser *p);
 struct stmt *parse_stmt(struct parser *p);
-
 
 int parse_dir_declarator(struct parser *p, struct declaration *decl);
 int parse_declarator(struct parser *p, struct declaration *decl);
 struct stmt *parse_declaration(struct parser *p);
 struct declaration *parse_init_declarator(struct parser *p, enum type_specifier dtype);
+struct stmt *parse_function(struct parser *p);
 
 #endif

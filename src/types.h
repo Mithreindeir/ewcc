@@ -7,7 +7,6 @@
 
 #define NUM_OPERATORS 31
 #define NUM_DTYPES 9
-/*Types and debug functions*/
 
 /*All operator types*/
 enum operator {
@@ -32,7 +31,6 @@ enum operator {
 	o_bor,
 	o_bxor,
 	o_bnot,
-
 	/**/
 	o_neg,
 	o_ref,
@@ -63,6 +61,8 @@ enum type_specifier {
 	type_unsigned,
 };
 
+
+/*Type connstructors*/
 enum info_type {
 	type_datatype,
 	type_ptr,
@@ -70,13 +70,23 @@ enum info_type {
 	type_fcn
 };
 
-/*This is part of the AST, but type info is needed all throughout the compiler
- * so a unified type info system is used*/
+/*Functions require extra type information*/
+struct func_type {
+	int paramc;
+	char **paramv;
+	struct type **paramt;
+};
+
+/*Types are constructed by combining one or more type structures in a list
+ * Example:
+ * int (*p)[5];
+ * p: ptr(arr[5](int));
+ * */
 struct type {
 	union {
 		enum type_specifier data_type;
-		int ptr;
-		int array;
+		struct func_type fcn;
+		int arr_elements;
 	} info;
 	enum info_type type;
 	struct type *next;
@@ -92,7 +102,6 @@ struct node_info {
 	void *truelist, *falselist;
 	int virt_reg;
 };
-
 
 /*Arrays for debugging enums*/
 extern const char *operator_str[NUM_OPERATORS];

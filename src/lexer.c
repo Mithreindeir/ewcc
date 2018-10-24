@@ -1,6 +1,6 @@
 #include "lexer.h"
 
-const struct token_pair token_pairs[29] = {
+const struct token_pair token_pairs[30] = {
 	{t_int, 	"int", 	3},
 	{t_char, 	"char", 4},
 	{t_inc, 	"++", 	2},
@@ -28,6 +28,7 @@ const struct token_pair token_pairs[29] = {
 	{t_else, 	"else", 4},
 	{t_while, 	"while",5},
 	{t_for, 	"for", 	3},
+	{t_comma, 	",", 	1},
 	{t_semic, 	";", 	1}
 };
 

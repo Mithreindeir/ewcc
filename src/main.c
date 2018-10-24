@@ -21,10 +21,10 @@ int main() {
 	free(str);
 
 	struct parser *p = parser_init(tok, toks);
-	struct stmt *s = parse_stmt(p);
+	struct stmt *s = parse_function(p);
 	if (s) {
 		printf("\n");
-		node_print(s);
+		node_tree(s);
 		printf("\n");
 		node_check(s, NULL);
 		node_free(s);
