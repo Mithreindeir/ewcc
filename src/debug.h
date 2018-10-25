@@ -5,6 +5,8 @@
 #include "ast.h"
 #include "symbols.h"
 
+extern const char *stmt_debug_str[NUM_STMT];
+
 /*Contains functions to dump internal structures, but that arent necessary to compile*/
 void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt);
 void ir_operand_debug(struct ir_operand *oper);

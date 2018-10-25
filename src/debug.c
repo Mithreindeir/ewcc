@@ -1,5 +1,12 @@
 #include "debug.h"
 
+#define STMT(a, b, c) c,
+const char *stmt_debug_str[NUM_STMT] = {
+	STMT_TABLE
+	STMT_OPER_TABLE
+};
+#undef STMT
+
 void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 {
 	struct ir_operand *cop[3] =
@@ -20,6 +27,7 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 
 void ir_operand_debug(struct ir_operand *oper)
 {
+	if (!oper) return;
 	switch (oper->type) {
 		case oper_reg: printf("R%d", oper->val.virt_reg); 	break;
 		case oper_sym: printf("_%s", oper->val.ident); 		break;
@@ -30,7 +38,7 @@ void ir_operand_debug(struct ir_operand *oper)
 
 void ir_stmt_debug(struct ir_stmt *stmt)
 {
-	const char *fmt = stmt_str[stmt->type];
+	const char *fmt = stmt_debug_str[stmt->type];
 	ir_debug_fmt(fmt, stmt);
 }
 

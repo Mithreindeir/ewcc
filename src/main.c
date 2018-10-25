@@ -30,10 +30,14 @@ int main()
 	struct stmt *s = parse_stmt(p);
 	//struct stmt *s = parse_function(p);
 	if (s) {
-		printf("\n");
+		printf("AST Tree View\n");
+		printf("------------------------------------\n");
 		node_debug(s);
 		printf("\n");
+		printf("------------------------------------\n");
 		//node_check(s, NULL);
+		printf("TAC Intermediate Representation\n");
+		printf("------------------------------------\n");
 		struct ir_stmt *stmt = generate(s), *next=NULL;
 		while (stmt) {
 			ir_stmt_debug(stmt);
@@ -42,6 +46,7 @@ int main()
 			ir_stmt_free(stmt);
 			stmt = next;
 		}
+		printf("------------------------------------\n");
 		node_free(s);
 	}
 	parser_free(p);
