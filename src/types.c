@@ -5,14 +5,16 @@ const char *operator_str[NUM_OPERATORS] = {
 	"==", "!=", ">", ">=", "<", "<=", 	// Relational
 	"&&", "||", "!", 			// Logical
 	"&", "|", "^", "~", 			// Binary
-	"-", "&", "*", "++", "++", "--", "--",// Unary/postfix/ptr
+	"-", "&", "*", "++", "++", "--", "--",  // Unary/postfix/ptr
 	"=", "+=", "-=", "*=", "/=", 		// Assignment
 	"invalid"
 };
 
+#define TYPE(a, b, c) [a]=b
 const char *data_type_str[NUM_DTYPES] = {
-	"none", "int", "char", "short", "long", "float", "double", "signed", "unsigned"
+	TYPE_TABLE
 };
+#undef TYPE
 
 struct type *type_init(enum info_type node_type)
 {

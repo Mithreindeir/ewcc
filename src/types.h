@@ -4,11 +4,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "lexer.h"
 
 #define NUM_OPERATORS 31
 #define NUM_DTYPES 9
 
-/*All operator types*/
+#define OPERATOR(o) o_##o
+
+#define OPERATOR_TABLE 		\
+	OPER
+
+/*All operator types (partial list atm)*/
 enum operator {
 	/*arithmetic*/
 	o_add,
@@ -48,21 +54,25 @@ enum operator {
 	o_invalid
 };
 
+#define TYPE_TABLE 			\
+	TYPE(type_none, "none", t_none), 	\
+	TYPE(type_int, 	"int", 	t_int), 	\
+	TYPE(type_char, "char", t_char), 	\
+	TYPE(type_short, "short", t_short), 	\
+	TYPE(type_long, "long", t_long), 	\
+	TYPE(type_float, "float", t_float), 	\
+	TYPE(type_double, "double", t_double), 	\
+	TYPE(type_signed, "signed", t_signed), 	\
+	TYPE(type_unsigned, "unsigned", t_unsigned)
 
+#define TYPE(a, b, c) a
 enum type_specifier {
-	type_none,
-	type_int,
-	type_char,
-	type_short,
-	type_long,
-	type_float,
-	type_double,
-	type_signed,
-	type_unsigned,
+	TYPE_TABLE
 };
+#undef TYPE
 
 
-/*Type connstructors*/
+/*Type constructors*/
 enum info_type {
 	type_datatype,
 	type_ptr,
