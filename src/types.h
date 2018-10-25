@@ -15,37 +15,36 @@
 	OPER
 
 /*All operator types (partial list atm)*/
-enum operator {
-	/*arithmetic*/
+enum operator  {
+	/*arithmetic */
 	o_add,
 	o_sub,
 	o_mul,
 	o_div,
-	/*relative*/
+	/*relative */
 	o_eq,
 	o_neq,
 	o_gt,
 	o_gte,
 	o_lt,
 	o_lte,
-	/*logical*/
+	/*logical */
 	o_and,
 	o_or,
 	o_not,
-	/*binary*/
+	/*binary */
 	o_band,
 	o_bor,
 	o_bxor,
 	o_bnot,
-	/**/
-	o_neg,
+	 /**/ o_neg,
 	o_ref,
 	o_deref,
 	o_postinc,
 	o_preinc,
 	o_postdec,
 	o_predec,
-	/*assignment*/
+	/*assignment */
 	o_asn,
 	o_add_asn,
 	o_sub_asn,
@@ -125,7 +124,7 @@ void type_free(struct type *head);
 void print_type(struct type *head);
 int cmp_types(struct type *a, struct type *b);
 struct type *dereference_type(struct type *a);
-enum operator dec_oper(char *str);
-void print_oper(enum operator o);
+enum operator  dec_oper(char *str);
+void print_oper(enum operator  o);
 
 #endif

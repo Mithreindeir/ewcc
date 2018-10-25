@@ -3,53 +3,62 @@
 
 #include "types.h"
 #include "symbols.h"
+#include "ast.h"
 
-#define NUM_STMT 	17
+/*Some flag values*/
+#define ADDRESS 	1
+#define VALUE 		2
+#define IGNORE 		3
+
+#define CONDITIONAL 	1
+#define UNCONDITIONAL 	2
+
+#define REQ_LABEL(ctx) (ctx->label_cnt++)
+
+#define NUM_STMT 	19
 #define STMT_STR(x) 	stmt_##x
 #define STMT_TABLE 			\
 	/*   enum 	fmt*/		\
-	STMT(label, 	"L$l"), 	\
-	/*Arithmetic*/ 			\
-	STMT(add, 	"$0 = $1 + $2"),\
-	STMT(neg, 	"$0 = $1 - $2"),\
-	STMT(mul, 	"$0 = $1 * $2"),\
-	STMT(div, 	"$0 = $1 / $2"),\
+	STMT(invalid, 	,"") 		\
+	STMT(label, 	,"L$l") 	\
+	/**/ 				\
+	STMT(call, 	, 	"$1()") \
+	STMT(ugoto, 	, 	"goto L$l") \
+	STMT(cgoto, 	, 	"ifneq L$l") \
+	STMT(alloc, 	, 	"alloc $1") \
+	/*Arithmetic*/
+#define STMT_OPER_TABLE 		\
+	STMT(add, 	o_add, 	"$0 = $1 + $2")\
+	STMT(sub, 	o_sub, 	"$0 = $1 - $2")\
+	STMT(mul, 	o_mul, 	"$0 = $1 * $2")\
+	STMT(div, 	o_div, 	"$0 = $1 / $2")\
 	/*Binary*/ 			\
-	STMT(band, 	"$0 = $1 & $2"),\
-	STMT(bor, 	"|"), 		\
-	STMT(bnot, 	"~"), 		\
+	STMT(band, 	o_band, "$0 = $1 & $2")\
+	STMT(bor, 	o_bor, 	"|") 		\
+	STMT(bnot, 	o_bnot, "~") 		\
 	/*Memory*/ 			\
-	STMT(load, 	"ld $0, $1"), 	\
-	STMT(store, 	"st $0, $1"), 	\
+	STMT(load, 	o_deref, "LD $0, $1") 	\
+	STMT(store, 	o_asn, "ST $0, $1") 	\
 	/*Relational*/ 			\
-	STMT(lt, 	"$1 < $2"), 	\
-	STMT(gt, 	"$1 > $2"), 	\
-	STMT(eq, 	"$1 == $2"), 	\
-	STMT(neq, 	"$1 != $2"), 	\
-	STMT(call, 	"$1()"), 	\
-	STMT(ugoto, 	"goto $l"), 	\
-	STMT(cgoto, 	"cgoto $l")
-
-#define OPER_STR(x) 	oper_##x
-#define OPER_TABLE 					\
-	/*   enum 	fmt 	get_function */		\
-	OPER(reg, 	"%d", 	get_reg)		\
-	OPER(sym, 	"%s", 	get_ident) 		\
-	OPER(cnum, 	"%ld", 	get_cnum) 		\
-	OPER(cstr, 	"%s", 	get_str)
+	STMT(lt, 	o_lt, 	"$1 < $2") 	\
+	STMT(gt, 	o_gt, 	"$1 > $2") 	\
+	STMT(eq, 	o_eq, 	"$1 == $2") 	\
+	STMT(neq, 	o_neq, 	"$1 != $2") 	\
 
 /*Some operations must be transformed*/
-#define STMT(a, b) STMT_STR(a)
+#define STMT(a, b, c) STMT_STR(a),
 enum stmt_type {
 	STMT_TABLE
+	STMT_OPER_TABLE
 };
 #undef STMT
 
-#define OPER(a, b, c) OPER_STR(a),
 enum oper_type {
-	OPER_TABLE
+	oper_reg,
+	oper_sym,
+	oper_cnum,
+	oper_cstr,
 };
-#undef OPER
 
 extern const char *stmt_str[NUM_STMT];
 
@@ -58,6 +67,7 @@ struct ir_operand {
 	union {
 		int virt_reg;
 		struct symbol *sym;
+		char *ident;
 		long constant;
 		char *cstr;
 	} val;
@@ -67,14 +77,40 @@ struct ir_stmt {
 	enum stmt_type type;
 	struct ir_operand *result, *arg1, *arg2;
 	struct ir_stmt *prev, *next;
+	int label;
 };
 
-void debug_fmt(const char *fmt, struct ir_stmt *stmt);
-void debug_ir_operand(struct ir_operand *oper);
-void debug_ir_stmt(struct ir_stmt *stmt);
-int get_reg(struct ir_operand *oper);
-char *get_ident(struct ir_operand *oper);
-char *get_str(struct ir_operand *oper);
-long get_cnum(struct ir_operand *oper);
+
+/*Context information needed to generate TAC*/
+struct generator {
+	int reg_cnt;
+	int label_cnt;
+	struct symbol_table *scope;
+	struct ir_stmt *head, *cur;
+};
+
+struct ir_stmt *ir_stmt_init();
+
+
+struct ir_stmt *generate(struct node *n);
+/*Generates TAC from AST node stmt*/
+void generate_from_node(struct node *n, struct generator *context);
+/*Generates TAC from AST expression, returns either address/value or ignores result*/
+struct ir_operand *generate_operand(struct node *n, struct generator *context, int result);
+
+/*Generation Helper functions*/
+struct ir_operand *copy(struct ir_operand *oper);
+enum stmt_type map_stmt(enum operator op);
+void emit(struct generator *context, struct ir_stmt *stmt);
+struct ir_stmt *emit_jump(struct generator *context, int label, int conditional);
+struct ir_stmt * emit_label(struct generator *context, int label);
+
+
+struct ir_stmt *ir_stmt_init();
+struct ir_operand *from_reg(int reg);
+struct ir_operand *from_cnum(long cnum);
+struct ir_operand *from_ident(char *ident);
+void ir_operand_free(struct ir_operand *oper);
+void ir_stmt_free(struct ir_stmt *stmt);
 
 #endif

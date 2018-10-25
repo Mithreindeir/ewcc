@@ -6,7 +6,7 @@
 
 #include "parser.h"
 #include "symbols.h"
-
+#include "debug.h"
 
 /*Per Scope Generic Hash Table for symbols*/
 

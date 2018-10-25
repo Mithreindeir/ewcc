@@ -9,7 +9,7 @@
  * algorithm, I will just be using arrays for now.*/
 struct symbol {
 	char *identifier;
-	struct type * type;
+	struct type *type;
 };
 
 struct symbol_table {

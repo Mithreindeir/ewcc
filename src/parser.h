@@ -24,7 +24,7 @@ struct symbol_table *pop_scope(struct parser *p);
 struct symbol_table *get_scope(struct parser *p);
 
 struct token *consume(struct parser *p);
-int peek(struct parser * p, enum token_type t);
+int peek(struct parser *p, enum token_type t);
 void syntax_error(struct parser *p, const char *msg);
 struct token *match(struct parser *p, enum token_type t);
 
@@ -55,7 +55,8 @@ struct stmt *parse_stmt(struct parser *p);
 int parse_dir_declarator(struct parser *p, struct declaration *decl);
 int parse_declarator(struct parser *p, struct declaration *decl);
 struct stmt *parse_declaration(struct parser *p);
-struct declaration *parse_init_declarator(struct parser *p, enum type_specifier dtype);
+struct declaration *parse_init_declarator(struct parser *p,
+					  enum type_specifier dtype);
 struct stmt *parse_function(struct parser *p);
 
 #endif

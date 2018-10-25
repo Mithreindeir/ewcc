@@ -25,20 +25,19 @@
 
 /*Explicit Node Type*/
 enum node_type {
-	/*Empty node for grammar*/
+	/*Empty for grammar */
 	node_empty,
-	/*Expressions*/
+	/*Expressions */
 	node_ident,
 	node_cnum,
 	node_unop,
 	node_binop,
-	node_fcall,
-	/*Statement*/
+	/*Statements */
 	node_func,
 	node_block,
 	node_cond,
 	node_loop,
-	node_decl,
+	node_decl
 };
 
 /*Implicit AST Node: Any structural node that conveys no information
@@ -82,7 +81,7 @@ struct func {
 struct block {
 	struct stmt **stmt_list;
 	int num_stmt;
-	/*Scope level symbol table*/
+	/*Scope level symbol table */
 	struct symbol_table *scope;
 };
 
@@ -102,19 +101,19 @@ struct cond {
 /*Binary operation*/
 struct binop {
 	struct expr *lhs, *rhs;
-	enum operator op;
+	enum operator   op;
 };
 
 /*Unary operation*/
 struct unop {
 	struct expr *term;
-	enum operator op;
+	enum operator   op;
 };
 
 struct declaration {
 	char *ident;
 	struct type *type;
-	/*for now just an expression*/
+	/*for now just an expression */
 	struct expr *initializer;
 };
 
@@ -127,14 +126,18 @@ union value {
 };
 
 struct node *node_init(int type, void *term);
-struct expr *binop_init(enum operator op, struct expr *lhs, struct expr *rhs);
-struct expr *unop_init(enum operator op, struct expr *term);
+struct expr *binop_init(enum operator   op, struct expr *lhs,
+			struct expr *rhs);
+struct expr *unop_init(enum operator   op, struct expr *term);
 struct stmt *block_init();
 void block_addstmt(struct block *b, struct stmt *s);
-struct stmt *loop_init(struct expr *init, struct expr *cond, struct expr *iter, struct stmt *body);
-struct stmt *cond_init(struct expr *cond, struct stmt *body, struct stmt *other);
+struct stmt *loop_init(struct expr *init, struct expr *cond,
+		       struct expr *iter, struct stmt *body);
+struct stmt *cond_init(struct expr *cond, struct stmt *body,
+		       struct stmt *other);
 struct expr *value_ident(const char *ident);
 struct expr *value_num(const char *num);
+
 void node_tree(struct node *n);
 void node_print(struct node *n);
 void node_free(struct node *n);

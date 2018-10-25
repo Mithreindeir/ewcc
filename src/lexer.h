@@ -51,7 +51,7 @@ enum token_type {
 
 struct token_pair {
 	enum token_type type;
-	const char * match;
+	const char *match;
 	int len;
 };
 
@@ -65,7 +65,7 @@ struct token {
 };
 
 /*Splits null delimited character stream into tokens and their respective types*/
-struct token **tokenify(char * stream, int * tlen);
+struct token **tokenify(char *stream, int *tlen);
 /*Given a string of arbitrary length, return the first valid token and set the length*/
 enum token_type lex_r(char **saveptr, int *tlen, char **ls, int *ln);
 
