@@ -14,8 +14,14 @@
 #define UNCONDITIONAL 	2
 
 #define REQ_LABEL(ctx) (ctx->label_cnt++)
+#define RELATIONAL(t) (t >= stmt_lt)
 
-#define NUM_STMT 	20
+#define TLIST_REF(n) ((struct ir_list**)&(n)->inf->truelist)
+#define FLIST_REF(n) ((struct ir_list**)&(n)->inf->falselist)
+#define TLIST(n) ((n)->inf->truelist)
+#define FLIST(n) ((n)->inf->falselist)
+
+#define NUM_STMT 	22
 #define STMT_STR(x) 	stmt_##x
 /*X Macros to generate statement mapping and automatically debug printing
  * IR tries to be solid intermediate between the AST and assembly
@@ -44,12 +50,14 @@
 	STMT(bor, 	o_bor, 	"|") 		\
 	STMT(bnot, 	o_bnot, "~") 		\
 	/*Memory*/ 				\
-	STMT(load, 	o_deref, "LD $0, [$1]")	\
-	STMT(store, 	o_asn, "ST [$0], $1") 	\
-	STMT(addr, 	o_ref, "$0 = &$1") 	\
+	STMT(load, 	o_deref,"LD $0, [$1]")	\
+	STMT(store, 	o_asn,  "ST [$0], $1") 	\
+	STMT(addr, 	o_ref,  "$0 = &$1") 	\
 	/*Relational*/ 				\
 	STMT(lt, 	o_lt, 	"$1 < $2") 	\
+	STMT(lte, 	o_lte, 	"$1 <= $2") 	\
 	STMT(gt, 	o_gt, 	"$1 > $2") 	\
+	STMT(gte, 	o_gte, 	"$1 >= $2") 	\
 	STMT(eq, 	o_eq, 	"$1 == $2") 	\
 	STMT(neq, 	o_neq, 	"$1 != $2")
 
@@ -67,7 +75,6 @@ enum oper_type {
 	oper_cnum,
 	oper_cstr,
 };
-
 
 struct ir_operand {
 	enum oper_type type;
@@ -87,21 +94,35 @@ struct ir_stmt {
 	int label;
 };
 
+/*For backpatching*/
+struct ir_list {
+	struct ir_stmt **list;
+	int num_stmt;
+};
+
 /*Context information needed to generate TAC*/
 struct generator {
 	int reg_cnt;
 	int label_cnt;
 	struct symbol_table *scope;
 	struct ir_stmt *head, *cur;
+	struct node *parent;
 };
 
 struct ir_stmt *ir_stmt_init();
 
 struct ir_stmt *generate(struct node *n);
-/*Generates TAC from AST node stmt*/
-void generate_from_node(struct node *n, struct generator *context);
-/*Generates TAC from AST expression, returns either address/value or ignores result*/
-struct ir_operand *generate_operand(struct node *n, struct generator *context, int result);
+/*Generates TAC from AST node, and returns the value if it is an expression*/
+struct ir_operand *generate_from_node(struct node *n, struct generator *context, int result);
+
+/*IR generation for AST nodes*/
+
+void cond_emit(struct generator *context, struct cond *c);
+void loop_emit(struct generator *context, struct loop *l);
+void decl_emit(struct generator *context, struct declaration *d);
+struct ir_operand *ident_emit(struct generator *context, char *ident, int result);
+struct ir_operand *unop_emit(struct generator *context, struct unop *u, int result);
+struct ir_operand *binop_emit(struct generator *context, struct binop *b, int result);
 
 /*Generation Helper functions*/
 enum stmt_type map_stmt(enum operator op);
@@ -109,6 +130,11 @@ struct ir_operand *copy(struct ir_operand *oper);
 void emit(struct generator *context, struct ir_stmt *stmt);
 struct ir_stmt *emit_label(struct generator *context, int label);
 struct ir_stmt *emit_jump(struct generator *context, int label, int conditional);
+
+struct ir_list *make_list(struct ir_stmt *n);
+struct ir_list *merge(struct ir_list *list1, struct ir_list *list2);
+void free_list(struct ir_list *list);
+void backpatch(struct ir_list **list, int label);
 
 struct ir_stmt *ir_stmt_init();
 struct ir_operand *from_reg(int reg);

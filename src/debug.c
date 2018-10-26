@@ -12,6 +12,7 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 	struct ir_operand *cop[3] =
 	    { stmt->result, stmt->arg1, stmt->arg2 };
 	int len = strlen(fmt);
+	if (stmt->type != stmt_label) printf("\t");
 	for (int i = 0; i < len; i++) {
 		if (fmt[i] == '$' && (i + 1) < len) {
 			char c = fmt[i + 1];

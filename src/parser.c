@@ -558,6 +558,7 @@ struct stmt *parse_function(struct parser *p)
 		free(decl);
 		return 0;
 	}
+	if (!decl->type) syntax_error(p, "Invalid declarator");
 	/*The type must be a function */
 	if (decl->type->type != type_fcn) {
 		free(decl->ident);

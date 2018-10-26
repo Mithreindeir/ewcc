@@ -27,8 +27,8 @@ int main()
 	free(str);
 
 	struct parser *p = parser_init(tok, toks);
-	struct stmt *s = parse_stmt(p);
-	//struct stmt *s = parse_function(p);
+	//struct stmt *s = parse_block(p);
+	struct stmt *s = parse_function(p);
 	if (s) {
 		printf("AST Tree View\n");
 		printf("------------------------------------\n");

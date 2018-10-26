@@ -8,129 +8,203 @@ enum stmt_type map_stmt(enum operator op)
 #undef STMT
 		default: break;
 	}
-	return stmt_label;
+	return stmt_invalid;
 }
 
 struct ir_stmt *generate(struct node *top)
 {
-	struct generator context = { .reg_cnt = 0, .scope = NULL};
-	generate_from_node(top, &context);
+	struct generator context = { .reg_cnt = 0, .scope = NULL, .parent = top};
+	generate_from_node(top, &context, IGNORE);
 	return context.head;
 }
 
-void generate_from_node(struct node *n, struct generator *context)
+struct ir_operand *generate_from_node(struct node *n, struct generator *context, int result)
 {
-	if (!n) return;
-	/*predefine some labels to use*/
-	int start = 0, otherwise = 0, end = 0;
-	struct ir_stmt *stmt = ir_stmt_init();
+	if (!n) return NULL;
+	struct ir_operand *r = NULL;
+	struct node *last = context->parent;
+	context->parent = n;
 	switch (n->type) {
+	case node_ident:
+		r = ident_emit(context, IDENT(n), result);
+		break;
+	case node_cnum:
+		r = from_cnum(CNUM(n));
+		break;
 	case node_unop:/*Unary operations*/
-		stmt->arg1 = 	generate_operand(UNOP(n)->term, context, VALUE);
-		stmt->result = 	from_reg(context->reg_cnt++);
-		stmt->type = map_stmt(BINOP(n)->op);
+		r = unop_emit(context, UNOP(n), result);
 		break;
 	case node_binop: /*If the type is assign, get the address of the lhs and assign the rhs to it*/
-		stmt->type = map_stmt(BINOP(n)->op);
-		if (stmt->type == stmt_store) {
-			stmt->arg1 = 	generate_operand(BINOP(n)->rhs, context, VALUE);
-			stmt->result = 	generate_operand(BINOP(n)->lhs, context, ADDRESS);
-		} else { /*Otherwise we can ignore it, but for now just put it in a register*/
-			stmt->arg1 = 	generate_operand(BINOP(n)->lhs, context, VALUE);
-			stmt->arg2 = 	generate_operand(BINOP(n)->rhs, context, VALUE);
-			stmt->result = 	from_reg(context->reg_cnt++);
-		}
+		r = binop_emit(context, BINOP(n), result);
 		break;
 	case node_block:
 		for (int i = 0; i < BLOCK(n)->num_stmt; i++)
-			generate_from_node(BLOCK(n)->stmt_list[i], context);
+			generate_from_node(BLOCK(n)->stmt_list[i], context, IGNORE);
 		break;
-	case node_cond:/*Emit comparison, if false jump to block end, at end of block jump after else block*/
-		otherwise = REQ_LABEL(context), end = REQ_LABEL(context);
-		generate_operand(COND(n)->condition, context, IGNORE);
-		emit_jump(context, otherwise, CONDITIONAL);
-		generate_from_node(COND(n)->body, context);
-		emit_jump(context, otherwise, UNCONDITIONAL);
-		emit_label(context, otherwise);
-		generate_from_node(COND(n)->otherwise, context);
-		emit_label(context, end);
+	case node_cond:
+		cond_emit(context, COND(n));
 		break;
 	case node_decl: /*emit an alloca, and optional assign statement*/
-		stmt->type = stmt_alloc;
-		stmt->arg1 = from_ident(DECL(n)->ident);
-		if (DECL(n)->initializer) {
-			emit(context, stmt);
-			stmt = ir_stmt_init();
-			stmt->type = stmt_store;
-			stmt->arg1 = generate_operand(DECL(n)->initializer, context, VALUE);
-			stmt->result = from_ident(DECL(n)->ident);
-		}
+		decl_emit(context, DECL(n));
 		break;
-	case node_loop:/*Emit comparison expression, cjump to block end, ujump at end of block to cmp*/
-		generate_from_node(LOOP(n)->init, context);
-		start = REQ_LABEL(context), end = REQ_LABEL(context);
-		emit_label(context, start);
-		generate_operand(LOOP(n)->condition, context, IGNORE);
-		emit_jump(context, end, CONDITIONAL);
-		generate_from_node(LOOP(n)->body, context);
-		generate_from_node(LOOP(n)->iter, context);
-		emit_jump(context, start, UNCONDITIONAL);
-		emit_label(context, end);
+	case node_loop:
+		loop_emit(context, LOOP(n));
 		break;
 	case node_func:
+		generate_from_node(FUNC(n)->body, context, IGNORE);
 		break;
 	default: exit(-1); break;
 	}
-	if (stmt->type == stmt_invalid) {
-		free(stmt);
-		return;
+	context->parent = last;
+	return r;
+}
+
+void cond_emit(struct generator *context, struct cond *c)
+{
+	/*Emit comparison, if false jump to block end, at end of block jump after else block*/
+	int start = REQ_LABEL(context), otherwise = REQ_LABEL(context), end = REQ_LABEL(context);
+	generate_from_node(c->condition, context, IGNORE);
+	/*Evaluating to false goes to the else statement*/
+	backpatch(FLIST_REF(c->condition), otherwise);
+	/*Going to true just jumps to the next statement (this will be optimized out)*/
+	backpatch(TLIST_REF(c->condition), start);
+	emit_label(context, start);
+	generate_from_node(c->body, context, IGNORE);
+	emit_jump(context, end, UNCONDITIONAL);
+	emit_label(context, otherwise);
+	/*If else statement exists, then traverse that too*/
+	generate_from_node(c->otherwise, context, IGNORE);
+	emit_label(context, end);
+}
+
+void loop_emit(struct generator *context, struct loop *l)
+{
+	/*Emit comparison expression, cjump to block end, ujump at end of block to cmp*/
+	generate_from_node(l->init, context, IGNORE);
+	int cmp = REQ_LABEL(context), start = REQ_LABEL(context), end = REQ_LABEL(context);
+	emit_label(context, cmp);
+	generate_from_node(l->condition, context, IGNORE);
+	/*Truelist jumps to next statement (will be optimized out)*/
+	backpatch(TLIST_REF(l->condition), start);
+	/*Falselist jumps to end of loop*/
+	backpatch(FLIST_REF(l->condition), end);
+	emit_label(context, start);
+	generate_from_node(l->body, context, IGNORE);
+	/*If iter exitst, it is put at the end of the loop body*/
+	generate_from_node(l->iter, context, IGNORE);
+	/*Unconditional jump to compare block*/
+	emit_jump(context, cmp, UNCONDITIONAL);
+	emit_label(context, end);
+}
+
+void decl_emit(struct generator *context, struct declaration *decl)
+{
+	struct ir_stmt *stmt = ir_stmt_init();
+	stmt->type = stmt_alloc;
+	stmt->arg1 = from_ident(decl->ident);
+	if (decl->initializer) {
+		emit(context, stmt);
+		stmt = ir_stmt_init();
+		stmt->type = stmt_store;
+		stmt->arg1 = generate_from_node(decl->initializer, context, VALUE);
+		stmt->result = from_ident(decl->ident);
 	}
 	emit(context, stmt);
 }
 
-struct ir_operand *generate_operand(struct node *n, struct generator *context, int result)
+/*If the result is asked for, returns either the address or value paired with a symbol*/
+struct ir_operand *ident_emit(struct generator *context, char *ident, int result)
 {
-	if (!n) return NULL;
+	//if (result == IGNORE) return NULL;
+	if (result == ADDRESS) return from_ident(ident);
+	/*If the value is asked for then emit a load instruction with the symbol address*/
 	struct ir_stmt *stmt = ir_stmt_init();
-	switch (n->type) {
-	case node_ident: /*If the parent wants the address, return that*/
-		if (result == ADDRESS) {
-			free(stmt);
-			return from_ident(IDENT(n));
-		}/*Otherwise load the contents of the address into a register*/
-		stmt->type = stmt_load;
-		stmt->result = from_reg(context->reg_cnt++);
-		stmt->arg1 = from_ident(IDENT(n));
-		emit(context, stmt);
-		return copy(stmt->result);
-	case node_cnum:
-		free(stmt);
-		return from_cnum(CNUM(n));
-	case node_unop:
-		stmt->type = map_stmt(UNOP(n)->op);
-		if (stmt->type == stmt_addr || stmt->type == stmt_load)
-			stmt->arg1 = 	generate_operand(UNOP(n)->term, context, ADDRESS);
-		else
-			stmt->arg1 = 	generate_operand(UNOP(n)->term, context, VALUE);
+	stmt->type = stmt_load;
+	stmt->result = from_reg(context->reg_cnt++);
+	stmt->arg1 = from_ident(ident);
+	emit(context, stmt);
+	return copy(stmt->result);
+}
+
+/*Traverses the unary expression and emits IR code, handles ++/-- syntactic sugar
+ * and returns the result if asked*/
+struct ir_operand *unop_emit(struct generator *context, struct unop *u, int result)
+{
+	struct ir_stmt *stmt = ir_stmt_init();
+	enum operator op = u->op;
+	stmt->type = map_stmt(op);
+	if (op==o_preinc || op == o_predec || op == o_postinc || op == o_postdec ) {
+		stmt->type = (op==o_preinc||op==o_postinc) ? stmt_add : stmt_sub;
+		stmt->arg1 = 	generate_from_node(u->term, context, VALUE);
+		stmt->arg2 = 	from_cnum(1);
 		stmt->result = 	from_reg(context->reg_cnt++);
 		emit(context, stmt);
-		return copy(stmt->result);
-	case node_binop:
-		stmt->type = map_stmt(BINOP(n)->op);
-		if (stmt->type == stmt_store) {
-			stmt->result = generate_operand(BINOP(n)->lhs, context, ADDRESS);
-			stmt->arg1 = 	generate_operand(BINOP(n)->rhs, context, VALUE);
-		} else {
-			stmt->arg1 = 	generate_operand(BINOP(n)->lhs, context, VALUE);
-			stmt->arg2 = 	generate_operand(BINOP(n)->rhs, context, VALUE);
-			stmt->result = 	from_reg(context->reg_cnt++);
-		}
+		struct ir_operand *lreg = copy(stmt->result), *preg = stmt->arg1;
+		stmt = ir_stmt_init();
+		stmt->type = stmt_store;
+		stmt->result = generate_from_node(u->term, context, ADDRESS);
+		stmt->arg1 = lreg;
 		emit(context, stmt);
-		return result != IGNORE ? copy(stmt->result) : NULL;
-	default: exit(-1); break;
+		/*Post inc/dec returns the old value in a register, then increments
+		 * contents at the address*/
+		if (op==o_postinc || op==o_postdec)
+			return result != IGNORE ? copy(preg) : NULL;
+		else /*Pre inc/dec increments it first then returns the final register*/
+			return result != IGNORE ? copy(lreg) : NULL;
+	} else if (stmt->type == stmt_addr || stmt->type == stmt_load) {
+		/*Ref statements or loads get the address of the operand*/
+		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
+	} else {
+		/*Most instructions use the value of the operands*/
+		stmt->arg1 = generate_from_node(u->term, context, VALUE);
 	}
-	free(stmt);
-	return NULL;
+	stmt->result = 	from_reg(context->reg_cnt++);
+	emit(context, stmt);
+	return result != IGNORE ? copy(stmt->result) : NULL;
+}
+
+/*Traverses the binary expression and emits IR code, handling short circuit and booleans
+ * returns the value of the operation if the result is asked for*/
+struct ir_operand *binop_emit(struct generator *context, struct binop *b, int result)
+{
+	struct ir_stmt *stmt = ir_stmt_init();
+	enum operator op = b->op;
+	stmt->type = map_stmt(op);
+	/*Store dereferences an address, and stores the rhs value in it*/
+	if (stmt->type == stmt_store) {
+		stmt->arg1 = 	generate_from_node(b->rhs, context, VALUE);
+		stmt->result = generate_from_node(b->lhs, context, ADDRESS);
+	} else if (op == o_and) {
+		/*And short circuit only evaluates the first expression if it is false*/
+		int between = REQ_LABEL(context);
+		generate_from_node(b->lhs, context, IGNORE);
+		emit_label(context, between);
+		generate_from_node(b->rhs, context, IGNORE);
+		/*Patch the truelist to the next expression*/
+		backpatch(TLIST_REF(b->lhs), between);
+		/*The truelist becomes the next expressions truelist*/
+		TLIST(context->parent) = TLIST(b->rhs);
+		/*Both sides falselists point to the same result*/
+		FLIST(context->parent) = merge(FLIST(b->lhs), FLIST(b->rhs));
+		free(stmt);
+		return NULL;
+	} else if (RELATIONAL(stmt->type)) {
+		/*Relational operators are actually jumps*/
+		stmt->arg1 = generate_from_node(b->lhs, context, IGNORE);
+		stmt->arg2 = generate_from_node(b->rhs, context, IGNORE);
+		emit(context, stmt);
+		/*The conditionally jumps if the expression is false*/
+		FLIST(context->parent) = make_list(emit_jump(context, -1, CONDITIONAL));
+		/*Unconditional jump to the next statement (will be optimized out)*/
+		TLIST(context->parent) = make_list(emit_jump(context, -1, UNCONDITIONAL));
+		return NULL;
+	} else {
+		stmt->arg1 = generate_from_node(b->lhs, context, VALUE);
+		stmt->arg2 = generate_from_node(b->rhs, context, VALUE);
+		stmt->result = from_reg(context->reg_cnt++);
+	}
+	emit(context, stmt);
+	return result != IGNORE ? copy(stmt->result) : NULL;
 }
 
 struct ir_stmt *emit_label(struct generator *context, int label)
@@ -172,6 +246,7 @@ struct ir_stmt *ir_stmt_init()
 	stmt->type=stmt_invalid;
 	stmt->result = NULL, stmt->arg1 = NULL, stmt->arg2 = NULL;
 	stmt->prev = NULL, stmt->next = NULL;
+	stmt->label = -1;
 	return stmt;
 }
 
@@ -221,4 +296,47 @@ void ir_stmt_free(struct ir_stmt *stmt)
 	ir_operand_free(stmt->arg1);
 	ir_operand_free(stmt->arg2);
 	free(stmt);
+}
+
+struct ir_list *make_list(struct ir_stmt *n)
+{
+	struct ir_list *list = malloc(sizeof(struct ir_list));
+	list->list = malloc(sizeof(struct ir_stmt*));
+	list->list[0] = n;
+	list->num_stmt = 1;
+	return list;
+}
+
+void free_list(struct ir_list *list)
+{
+	free(list->list);
+	free(list);
+}
+
+struct ir_list *merge(struct ir_list *list1, struct ir_list *list2)
+{
+	if (!list1 && list2) return list2;
+	if (!list2 && list1) return list1;
+	if (!list1 && !list2) return NULL;
+
+	int os = list1->num_stmt;
+	int ns = list1->num_stmt + list2->num_stmt;
+	list1->num_stmt = ns;
+	list1->list = realloc(list1->list, sizeof(struct ir_stmt*)*ns);
+	for (int i = os; i < ns; i++) {
+		list1->list[i] = list2->list[i-os];
+	}
+	free_list(list2);
+	return list1;
+}
+
+void backpatch(struct ir_list **rlist, int label)
+{
+	if (!rlist) return;
+	struct ir_list *list = *rlist;
+	if (!list) return;
+	for (int i = 0; i < list->num_stmt; i++)
+		list->list[i]->label = label;
+	free_list(list);
+	*rlist = NULL;
 }
