@@ -1,8 +1,9 @@
 # ewcc
-Small C compiler in development in C99 with a handwritten Recursive Descent parser
 Making a compiler for learning purposes focusing on simplicity and correctness.
+
 ## Current Progress:
-Example:
+The compiler can currently take a program with a small subset of C, like:
+
 ```C
 int main(int argc, char **argv)
 {
@@ -11,6 +12,8 @@ int main(int argc, char **argv)
 	}
 }
 ```
+And parses it to generate an AST, like:
+
 ```
 AST Tree View
 ------------------------------------
@@ -37,6 +40,7 @@ func main: fcn( argc: int, argv: ptr(ptr(char))) -> int
 
 ------------------------------------
 ```
+Lastly, it generates Three-Address-Code as an IR representation, and is currently very unoptimized:
 
 ```
 TAC Intermediate Representation
@@ -66,4 +70,9 @@ L2
 ------------------------------------
 
 ```
-Now working on semantic error checking, IR, and code-gen.
+
+Now finishing up the parser and IR representation, then will start the code generation.
+Missing random parts that I am filling in:
+- string & character literals
+- do/while and switch
+- random operators
