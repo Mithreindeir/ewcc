@@ -19,9 +19,9 @@
 #define UNOP(n) ((struct unop*)n->child)
 #define DECL(n) ((struct declaration*)n->child)
 #define FUNC(n) ((struct func*)n->child)
+#define RET(n) (n->child)
 #define IDENT(n) (((union value*)n->child)->ident)
 #define CNUM(n) (((union value*)n->child)->cnum)
-
 
 /*Explicit Node Type*/
 enum node_type {
@@ -37,7 +37,11 @@ enum node_type {
 	node_block,
 	node_cond,
 	node_loop,
-	node_decl
+	node_decl,
+	/*Jumps*/
+	node_break,
+	node_continue,
+	node_return
 };
 
 /*Implicit AST Node: Any structural node that conveys no information

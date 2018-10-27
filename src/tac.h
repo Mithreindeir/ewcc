@@ -21,7 +21,7 @@
 #define TLIST(n) ((n)->inf->truelist)
 #define FLIST(n) ((n)->inf->falselist)
 
-#define NUM_STMT 	22
+#define NUM_STMT 	25
 #define STMT_STR(x) 	stmt_##x
 /*X Macros to generate statement mapping and automatically debug printing
  * IR tries to be solid intermediate between the AST and assembly
@@ -37,8 +37,14 @@
 	/**/ 					\
 	STMT(call, 	, 	"$1()") 	\
 	STMT(ugoto, 	, 	"goto L$l") 	\
-	STMT(cgoto, 	, 	"ifneq L$l") 	\
-	STMT(alloc, 	, 	"alloc $1")
+	STMT(cgoto, 	, 	"if true L$l") 	\
+	STMT(alloc, 	, 	"alloc $1") 	\
+	/*Move, must be on registers and immediates*/\
+	STMT(move, 	, 	"$0 = $1")\
+	/*Set the return value*/\
+	STMT(retval, 	, 	"retval $1")\
+	/*Return from procedure*/\
+	STMT(ret, 	, 	"ret")
 	/*Arithmetic*/
 #define STMT_OPER_TABLE 			\
 	STMT(add, 	o_add, 	"$0 = $1 + $2") \

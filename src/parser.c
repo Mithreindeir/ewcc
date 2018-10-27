@@ -594,6 +594,25 @@ struct stmt *parse_function(struct parser *p)
 	return node_init(node_func, f);
 }
 
+/*J = break | continue | return E*/
+struct stmt *parse_jump(struct parser *p)
+{
+	struct token *t;
+	if ((t=match(p, t_break)) && match(p, t_semic)) return node_init(node_break, NULL);
+	else if (t) syntax_error(p, "Missing semicolon after break");
+
+	if ((t=match(p, t_continue)) && match(p, t_semic)) return node_init(node_continue, NULL);
+	else if (t) syntax_error(p, "Missing semicolon after continue");
+
+	struct expr *e;
+	if (match(p, t_return)) {
+		e = parse_expr(p);
+		if (!match(p, t_semic)) syntax_error(p, "Missing semicolon after return");
+		return node_init(node_return, e);
+	}
+	return NULL;
+}
+
 /*S = block  | expr ; | cond | iter | jmp */
 struct stmt *parse_stmt(struct parser *p)
 {
@@ -605,6 +624,8 @@ struct stmt *parse_stmt(struct parser *p)
 	if ((s = parse_cond(p)))
 		return s;
 	if ((s = parse_loop(p)))
+		return s;
+	if ((s = parse_jump(p)))
 		return s;
 	//if (s=parse_declaration(p)) return s;
 	if (match(p, t_semic))

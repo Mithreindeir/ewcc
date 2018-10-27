@@ -6,6 +6,8 @@
 #include "checker.h"
 #include "debug.h"
 #include "tac.h"
+#include "peep.h"
+
 
 int main()
 {
@@ -35,18 +37,22 @@ int main()
 		node_debug(s);
 		printf("\n");
 		printf("------------------------------------\n");
+
 		//node_check(s, NULL);
+		struct ir_stmt *stmt = generate(s);
+
+		optimize(stmt);
 		printf("TAC Intermediate Representation\n");
 		printf("------------------------------------\n");
-		struct ir_stmt *stmt = generate(s), *next=NULL;
+		ir_debug(stmt);
+		printf("------------------------------------\n");
+
+	       	struct ir_stmt *next=NULL;
 		while (stmt) {
-			ir_stmt_debug(stmt);
-			printf("\n");
 			next = stmt->next;
 			ir_stmt_free(stmt);
 			stmt = next;
 		}
-		printf("------------------------------------\n");
 		node_free(s);
 	}
 	parser_free(p);

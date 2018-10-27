@@ -38,8 +38,12 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		r = binop_emit(context, BINOP(n), result);
 		break;
 	case node_block:
-		for (int i = 0; i < BLOCK(n)->num_stmt; i++)
+		for (int i = 0; i < BLOCK(n)->num_stmt; i++) {
 			generate_from_node(BLOCK(n)->stmt_list[i], context, IGNORE);
+			/*Merge it into the block*/
+			TLIST(n)=merge(TLIST(n), TLIST(BLOCK(n)->stmt_list[i]));
+			FLIST(n)=merge(FLIST(n), FLIST(BLOCK(n)->stmt_list[i]));
+		}
 		break;
 	case node_cond:
 		cond_emit(context, COND(n));
@@ -52,6 +56,25 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		break;
 	case node_func:
 		generate_from_node(FUNC(n)->body, context, IGNORE);
+		int end = REQ_LABEL(context);
+		emit_label(context, end);
+		backpatch(FLIST_REF(FUNC(n)->body), end);
+		struct ir_stmt *s = ir_stmt_init();
+		s->type = stmt_ret;
+		emit(context, s);
+		break;
+	case node_break:
+		FLIST(n) = make_list(emit_jump(context, -1, UNCONDITIONAL));
+		break;
+	case node_continue:
+		TLIST(n) = make_list(emit_jump(context, -1, UNCONDITIONAL));
+		break;
+	case node_return:
+		s = ir_stmt_init();
+		s->type = stmt_retval;
+		s->arg1 = generate_from_node(RET(n), context, VALUE);
+		emit(context, s);
+		FLIST(n) = make_list(emit_jump(context, -1, UNCONDITIONAL));
 		break;
 	default: exit(-1); break;
 	}
@@ -64,37 +87,53 @@ void cond_emit(struct generator *context, struct cond *c)
 	/*Emit comparison, if false jump to block end, at end of block jump after else block*/
 	int start = REQ_LABEL(context), otherwise = REQ_LABEL(context), end = REQ_LABEL(context);
 	generate_from_node(c->condition, context, IGNORE);
-	/*Evaluating to false goes to the else statement*/
-	backpatch(FLIST_REF(c->condition), otherwise);
-	/*Going to true just jumps to the next statement (this will be optimized out)*/
+	/*True is patched to the start of the block, false is patched to where the else block would be*/
 	backpatch(TLIST_REF(c->condition), start);
+	backpatch(FLIST_REF(c->condition), otherwise);
+
 	emit_label(context, start);
 	generate_from_node(c->body, context, IGNORE);
-	emit_jump(context, end, UNCONDITIONAL);
+	/*If there is a else block, then emit an unconditional jump to the end of that*/
+	if (c->otherwise)
+		emit_jump(context, end, UNCONDITIONAL);
 	emit_label(context, otherwise);
 	/*If else statement exists, then traverse that too*/
 	generate_from_node(c->otherwise, context, IGNORE);
 	emit_label(context, end);
+	/*The body's patched to the parents*/
+	if (c->body) {
+		TLIST(context->parent) = merge(TLIST(context->parent), TLIST(c->body));
+		FLIST(context->parent) = merge(FLIST(context->parent), FLIST(c->body));
+	}
+	if (c->otherwise) {
+		TLIST(context->parent) = merge(TLIST(context->parent), TLIST(c->otherwise));
+		FLIST(context->parent) = merge(FLIST(context->parent), FLIST(c->otherwise));
+	}
 }
 
 void loop_emit(struct generator *context, struct loop *l)
 {
-	/*Emit comparison expression, cjump to block end, ujump at end of block to cmp*/
-	generate_from_node(l->init, context, IGNORE);
 	int cmp = REQ_LABEL(context), start = REQ_LABEL(context), end = REQ_LABEL(context);
-	emit_label(context, cmp);
-	generate_from_node(l->condition, context, IGNORE);
-	/*Truelist jumps to next statement (will be optimized out)*/
-	backpatch(TLIST_REF(l->condition), start);
-	/*Falselist jumps to end of loop*/
-	backpatch(FLIST_REF(l->condition), end);
-	emit_label(context, start);
-	generate_from_node(l->body, context, IGNORE);
-	/*If iter exitst, it is put at the end of the loop body*/
-	generate_from_node(l->iter, context, IGNORE);
+	generate_from_node(l->init, context, IGNORE);
 	/*Unconditional jump to compare block*/
 	emit_jump(context, cmp, UNCONDITIONAL);
+	emit_label(context, start);
+	generate_from_node(l->body, context, IGNORE);
+	generate_from_node(l->iter, context, IGNORE);
+	emit_label(context, cmp);
+	generate_from_node(l->condition, context, IGNORE);
 	emit_label(context, end);
+	/*True is backpatched to the loop start, false is patched to after the loop ends*/
+	backpatch(TLIST_REF(l->condition), start);
+	backpatch(FLIST_REF(l->condition), end);
+	/*The bodys truelist/falselist are continue/break, so patch to start/end respectively*/
+	backpatch(TLIST_REF(l->body), start);
+	backpatch(FLIST_REF(l->body), end);
+	/*The loop body gets patched up to the parent*/
+	if (l->body) {
+		TLIST(context->parent) = merge(TLIST(context->parent), TLIST(l->body));
+		FLIST(context->parent) = merge(FLIST(context->parent), FLIST(l->body));
+	}
 }
 
 void decl_emit(struct generator *context, struct declaration *decl)
@@ -194,9 +233,9 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b, int re
 		stmt->arg2 = generate_from_node(b->rhs, context, IGNORE);
 		emit(context, stmt);
 		/*The conditionally jumps if the expression is false*/
-		FLIST(context->parent) = make_list(emit_jump(context, -1, CONDITIONAL));
+		TLIST(context->parent) = make_list(emit_jump(context, -1, CONDITIONAL));
 		/*Unconditional jump to the next statement (will be optimized out)*/
-		TLIST(context->parent) = make_list(emit_jump(context, -1, UNCONDITIONAL));
+		FLIST(context->parent) = make_list(emit_jump(context, -1, UNCONDITIONAL));
 		return NULL;
 	} else {
 		stmt->arg1 = generate_from_node(b->lhs, context, VALUE);
@@ -256,6 +295,8 @@ struct ir_operand *copy(struct ir_operand *oper)
 		return from_reg(oper->val.virt_reg);
 	else if (oper->type == oper_sym)
 		return from_ident(oper->val.ident);
+	else if (oper->type == oper_cnum)
+		return from_cnum(oper->val.constant);
 	return NULL;
 }
 

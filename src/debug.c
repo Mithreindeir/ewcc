@@ -43,6 +43,18 @@ void ir_stmt_debug(struct ir_stmt *stmt)
 	ir_debug_fmt(fmt, stmt);
 }
 
+void ir_debug(struct ir_stmt *head)
+{
+	struct ir_stmt *stmt = head;
+	int ln = 0;
+	while (stmt) {
+		printf("%2d: ", ++ln);
+		ir_stmt_debug(stmt);
+		printf("\n");
+		stmt = stmt->next;
+	}
+}
+
 void symbol_table_debug(struct symbol_table *scope)
 {
 	if (!scope)
@@ -147,6 +159,19 @@ void node_debug(struct node *n)
 		break;
 	case node_empty:
 		printf("empty\n");
+		break;
+	case node_break:
+		printf("break\n");
+		break;
+	case node_continue:
+		printf("continue\n");
+		break;
+	case node_return:
+		printf("return\n");
+		depth_str[di++] = ' ';
+		depth_str[di++] = ' ';
+		node_debug(RET(n));
+		di -= 2;
 		break;
 	default:
 		break;
