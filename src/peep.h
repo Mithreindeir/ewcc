@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "match.h"
 #include "debug.h"
 #include "tac.h"
 
@@ -16,82 +17,50 @@
  * ...
  * into
  * ife L2
- *
  * or
- * LD R0, [_a]
- * LD R1, [_a]
- * R2 = R0 + R1
- *
+ * ife L2
+ * goto L0
+ * L2:
  * into
- * LD R0, [_a]
- * R2 = R0 + R0
+ * ifne L0
  * */
 
 /*Pattern matching*/
-#define STMT_PAT(type, r, a1, a2, l) {type, r, a1,a2, l }
+#define STMT_PAT(flag, type, r, a1, a2) {flag, type, r, a1, a2}
 
 /*The patterns define what should trigger the optimization functions
  * The numbers mean a matching pair, and empty strings ignore the arguments
  * */
 #define PATTERN_TABLE 		\
-	/*Removes gotos that jump to the next statement*/ \
 	PATTERN(2, reduce_goto,\
-		STMT_PAT(stmt_ugoto, "", "", "", "1"),\
-		STMT_PAT(stmt_label, "", "", "", "1"))\
-	/*Eliminates double consecutive loads*/\
-	PATTERN(2, reduce_load,\
-		STMT_PAT(stmt_load, "", "1", "", ""),\
-		STMT_PAT(stmt_load, "", "1", "", ""))\
-	/*Eliminates consecutive store/load of the same variable*/\
+		STMT_PAT(SRC | LBL, 	stmt_ugoto, IGN, IGN, IGN),\
+		STMT_PAT(DST | LBL, 	stmt_label, IGN, IGN, IGN))\
 	PATTERN(2, reduce_store_load,\
-		STMT_PAT(stmt_store, "1", "", "", ""),\
-		STMT_PAT(stmt_load, "", "1", "", ""))\
-	/*Flips cjump/ujump pairs to eliminate one*/\
+		STMT_PAT(SRC, 		stmt_store, AG1, IGN, IGN),\
+		STMT_PAT(DST, 		stmt_load, IGN, IGN, IGN))\
 	PATTERN(3, reduce_cgoto,\
-		STMT_PAT(stmt_cgoto, "", "", "", "1"),\
-		STMT_PAT(stmt_ugoto, "", "", "", ""),\
-		STMT_PAT(stmt_label, "", "", "", "1"))\
-	/*Reduces redundant labels*/\
+		STMT_PAT(LBL | SRC, 	stmt_cgoto, IGN, IGN, IGN),\
+		STMT_PAT(LBL, 		stmt_ugoto, IGN, IGN, IGN),\
+		STMT_PAT(LBL | DST, 	stmt_label, IGN, IGN, IGN))\
 	PATTERN(2, reduce_label,\
-		STMT_PAT(stmt_label, "", "", "", ""),\
-		STMT_PAT(stmt_label, "", "", "", ""))\
-
+		STMT_PAT(0, 		stmt_label, IGN, IGN, IGN),\
+		STMT_PAT(0, 		stmt_label, IGN, IGN, IGN))\
+	PATTERN(2, reduce_load,\
+		STMT_PAT(SRC, 		stmt_load, IGN, AG1, IGN),\
+		STMT_PAT(DST, 		stmt_load, IGN, IGN, IGN))
 #define NUM_PSTMT 11
 #define NUM_PATTERNS 5
 
-struct stmt_pattern {
-	enum stmt_type st_type;
-	char *result, *arg1, *arg2, *label;
-};
-
-struct pattern {
-	int num_stmt;
-	struct ir_stmt *(*reduce)(struct ir_stmt *);
-};
-
-extern const struct stmt_pattern pattern_stmts[NUM_PSTMT];
-extern const struct pattern peephole_patterns[NUM_PATTERNS];
-
-struct pattern_state {
-	int num_vars;
-	char **names;
-	void **vars;
-};
-
+extern struct stmt_pattern pattern_stmts[NUM_PSTMT];
+extern struct pattern peephole_patterns[NUM_PATTERNS];
 
 void optimize(struct ir_stmt *start);
-struct ir_stmt *optimize_stmt(struct ir_stmt *a);
-int match_pattern(struct pattern_state *state, struct ir_stmt *a, struct stmt_pattern b);
-int compare_operands(struct ir_operand *a, struct ir_operand *b);
-void add_state(struct pattern_state *state, void *o, char *name);
-void clear_state(struct pattern_state *state);
-void *query_state(struct pattern_state *state, char *n);
+struct ir_stmt *find_handle(struct ir_stmt *cur, void *val);
 
 struct ir_stmt *reduce_goto(struct ir_stmt *a);
 struct ir_stmt *reduce_cgoto(struct ir_stmt *a);
 struct ir_stmt *reduce_load(struct ir_stmt *a);
 struct ir_stmt *reduce_store_load(struct ir_stmt *a);
 struct ir_stmt *reduce_label(struct ir_stmt *a);
-
 
 #endif

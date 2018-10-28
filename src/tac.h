@@ -38,7 +38,7 @@
 	STMT(call, 	, 	"$1()") 	\
 	STMT(ugoto, 	, 	"goto L$l") 	\
 	STMT(cgoto, 	, 	"if true L$l") 	\
-	STMT(alloc, 	, 	"alloc $1") 	\
+	STMT(alloc, 	, 	"alloc $1")	\
 	/*Move, must be on registers and immediates*/\
 	STMT(move, 	, 	"$0 = $1")\
 	/*Set the return value*/\
@@ -93,6 +93,7 @@ struct ir_operand {
 	} val;
 };
 
+/*Three Address Code Statement*/
 struct ir_stmt {
 	enum stmt_type type;
 	struct ir_operand *result, *arg1, *arg2;
@@ -145,6 +146,7 @@ void backpatch(struct ir_list **list, int label);
 struct ir_stmt *ir_stmt_init();
 struct ir_operand *from_reg(int reg);
 struct ir_operand *from_cnum(long cnum);
+struct ir_operand *from_sym(struct symbol *s);
 struct ir_operand *from_ident(char *ident);
 void ir_operand_free(struct ir_operand *oper);
 void ir_stmt_free(struct ir_stmt *stmt);

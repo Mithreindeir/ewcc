@@ -38,12 +38,14 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		r = binop_emit(context, BINOP(n), result);
 		break;
 	case node_block:
+		context->scope = BLOCK(n)->scope;
 		for (int i = 0; i < BLOCK(n)->num_stmt; i++) {
 			generate_from_node(BLOCK(n)->stmt_list[i], context, IGNORE);
 			/*Merge it into the block*/
 			TLIST(n)=merge(TLIST(n), TLIST(BLOCK(n)->stmt_list[i]));
 			FLIST(n)=merge(FLIST(n), FLIST(BLOCK(n)->stmt_list[i]));
 		}
+		context->scope = BLOCK(n)->scope->parent;
 		break;
 	case node_cond:
 		cond_emit(context, COND(n));
@@ -140,13 +142,15 @@ void decl_emit(struct generator *context, struct declaration *decl)
 {
 	struct ir_stmt *stmt = ir_stmt_init();
 	stmt->type = stmt_alloc;
-	stmt->arg1 = from_ident(decl->ident);
+	alloc_type(context->scope, decl->ident);
+	struct symbol *s = get_symbol(context->scope, decl->ident);
+	stmt->arg1 = from_sym(s);
 	if (decl->initializer) {
 		emit(context, stmt);
 		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
 		stmt->arg1 = generate_from_node(decl->initializer, context, VALUE);
-		stmt->result = from_ident(decl->ident);
+		stmt->result = from_sym(s);
 	}
 	emit(context, stmt);
 }
@@ -155,12 +159,13 @@ void decl_emit(struct generator *context, struct declaration *decl)
 struct ir_operand *ident_emit(struct generator *context, char *ident, int result)
 {
 	//if (result == IGNORE) return NULL;
-	if (result == ADDRESS) return from_ident(ident);
+	struct symbol *s = get_symbol(context->scope, ident);
+	if (result == ADDRESS) return from_sym(s);
 	/*If the value is asked for then emit a load instruction with the symbol address*/
 	struct ir_stmt *stmt = ir_stmt_init();
 	stmt->type = stmt_load;
 	stmt->result = from_reg(context->reg_cnt++);
-	stmt->arg1 = from_ident(ident);
+	stmt->arg1 = from_sym(s);
 	emit(context, stmt);
 	return copy(stmt->result);
 }
@@ -190,8 +195,14 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u, int resu
 			return result != IGNORE ? copy(preg) : NULL;
 		else /*Pre inc/dec increments it first then returns the final register*/
 			return result != IGNORE ? copy(lreg) : NULL;
-	} else if (stmt->type == stmt_addr || stmt->type == stmt_load) {
-		/*Ref statements or loads get the address of the operand*/
+	} else if (stmt->type == stmt_load && result == ADDRESS) {
+		//Do not dereference, if an address is needed as a result
+		free(stmt);
+		return generate_from_node(u->term, context, VALUE);
+	} else if (stmt->type == stmt_load) {
+		/*If there is a deref/ref involved, let the parent decide*/
+		stmt->arg1 = generate_from_node(u->term, context, result);
+	} else if (stmt->type == stmt_addr) {
 		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
 	} else {
 		/*Most instructions use the value of the operands*/
@@ -294,7 +305,7 @@ struct ir_operand *copy(struct ir_operand *oper)
 	if (oper->type == oper_reg)
 		return from_reg(oper->val.virt_reg);
 	else if (oper->type == oper_sym)
-		return from_ident(oper->val.ident);
+		return from_sym(oper->val.sym);
 	else if (oper->type == oper_cnum)
 		return from_cnum(oper->val.constant);
 	return NULL;
@@ -305,6 +316,14 @@ struct ir_operand *from_reg(int reg)
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
 	oper->type = oper_reg;
 	oper->val.virt_reg = reg;
+	return oper;
+}
+
+struct ir_operand *from_sym(struct symbol *s)
+{
+	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
+	oper->type = oper_sym;
+	oper->val.sym = s;
 	return oper;
 }
 

@@ -7,6 +7,69 @@
 #include "debug.h"
 #include "tac.h"
 #include "peep.h"
+#include "ralloc.h"
+#include "live.h"
+
+void test_graph()
+{
+	int num = 10;
+	/*Set up basic graph to color*/
+	struct vertex **graph = calloc(num, sizeof(struct vertex*));
+	for (int i = 0; i < num; i++) {
+		graph[i] = vertex_init();
+		graph[i]->ocolor = i;
+	}
+	/*b c d e f g h j k m*/
+	/*0 1 2 3 4 5 6 7 8 9*/
+	/*m f e j b k g h d c*/
+	/*
+Vertex b: color 1: good
+Vertex c: color 2: good
+Vertex d: color 1: good
+Vertex e: color 2: good
+Vertex f: color 1: good
+Vertex g: color 1: good
+Vertex h: color 2: good
+Vertex j: color 0: good
+Vertex k: color 2: good
+Vertex m: color 0: good
+
+	 *
+	 * */
+
+	add_edge(graph[0], graph[1]);
+	add_edge(graph[0], graph[3]);
+	add_edge(graph[0], graph[8]);
+	add_edge(graph[0], graph[9]);
+
+	add_edge(graph[1], graph[9]);
+
+	add_edge(graph[2], graph[8]);
+	add_edge(graph[2], graph[9]);
+
+	add_edge(graph[3], graph[9]);
+	add_edge(graph[3], graph[4]);
+	add_edge(graph[3], graph[7]);
+
+	add_edge(graph[4], graph[7]);
+	add_edge(graph[4], graph[9]);
+
+	add_edge(graph[5], graph[8]);
+	add_edge(graph[5], graph[6]);
+	add_edge(graph[5], graph[7]);
+
+	add_edge(graph[6], graph[7]);
+
+	add_edge(graph[7], graph[8]);
+
+	color_graph(graph, num, 3);
+
+	for (int i = 0; i < num; i++)
+		printf("Node %d: color %d\n", i, graph[i]->color);
+
+	for (int i = 0; i < num; i++) vertex_free(graph[i]);
+	free(graph);
+}
 
 
 int main()
@@ -46,6 +109,13 @@ int main()
 		printf("------------------------------------\n");
 		ir_debug(stmt);
 		printf("------------------------------------\n");
+		int nbbs=0;
+		struct bb **bbs = cfg(stmt, &nbbs);
+		//bb_debug(bbs[0]);
+		for (int i = 0; i < nbbs; i++) {
+			bb_free(bbs[i]);
+		}
+		free(bbs);
 
 	       	struct ir_stmt *next=NULL;
 		while (stmt) {

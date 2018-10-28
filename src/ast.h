@@ -130,6 +130,8 @@ union value {
 };
 
 struct node *node_init(int type, void *term);
+void node_free(struct node *n);
+
 struct expr *binop_init(enum operator   op, struct expr *lhs,
 			struct expr *rhs);
 struct expr *unop_init(enum operator   op, struct expr *term);
@@ -141,9 +143,5 @@ struct stmt *cond_init(struct expr *cond, struct stmt *body,
 		       struct stmt *other);
 struct expr *value_ident(const char *ident);
 struct expr *value_num(const char *num);
-
-void node_tree(struct node *n);
-void node_print(struct node *n);
-void node_free(struct node *n);
 
 #endif

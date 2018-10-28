@@ -2,6 +2,8 @@
 #define DEBUG_H
 
 #include "tac.h"
+#include "live.h"
+#include "ralloc.h"
 #include "ast.h"
 #include "symbols.h"
 
@@ -13,6 +15,7 @@ void ir_operand_debug(struct ir_operand *oper);
 void ir_debug(struct ir_stmt *head);
 void ir_stmt_debug(struct ir_stmt *stmt);
 void symbol_table_debug(struct symbol_table *scope);
+void bb_debug(struct bb *head);
 void node_debug(struct node *n);
 
 #endif

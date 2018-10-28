@@ -7,6 +7,32 @@ const char *stmt_debug_str[NUM_STMT] = {
 };
 #undef STMT
 
+void bb_debug(struct bb *bb)
+{
+	if (!bb) return;
+	if (bb->visited) return;
+	bb->visited = 1;
+	printf("Basic Block:\n");
+	printf("------------------------------------\n");
+	struct ir_stmt *stmt = bb->blk;
+	int ln = 0;
+	while (stmt && ln < bb->len) {
+		printf("%2d: ", ++ln);
+		ir_stmt_debug(stmt);
+		printf("\n");
+		stmt = stmt->next;
+	}
+	printf("Local Register Allocation:\n");
+	color_graph(bb->graph, bb->nvert, 4);
+	for (int i = 0; i < bb->nvert; i++)
+		printf("Temp R%d = Machine Reg %d\n", bb->graph[i]->ocolor, bb->graph[i]->color);
+	printf("------------------------------------\n");
+	printf("\n");
+	for (int i = 0; i < bb->nsucc; i++) {
+		bb_debug(bb->succ[i]);
+	}
+}
+
 void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 {
 	struct ir_operand *cop[3] =
@@ -31,7 +57,12 @@ void ir_operand_debug(struct ir_operand *oper)
 	if (!oper) return;
 	switch (oper->type) {
 		case oper_reg: printf("R%d", oper->val.virt_reg); 	break;
-		case oper_sym: printf("_%s", oper->val.ident); 		break;
+		case oper_sym:
+			if (!oper->val.sym) break;
+			if (oper->val.sym->offset)
+				printf("fp-%ld", oper->val.sym->offset);
+			else printf("_%s", oper->val.sym->identifier);
+			break;
 		case oper_cnum: printf("#%ld", oper->val.constant); 	break;
 		default: break;
 	}
