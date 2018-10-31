@@ -103,8 +103,9 @@ void color_graph(struct vertex **graph, int num, int k)
 			}
 		}
 		if (clr >= k) {/*spill*/
-			v->color = k;
+			//v->color = k;
 		} else {
+			printf("Assigned R%d -> %d\n", v->ocolor, clr);
 			v->color = clr;
 		}
 	}

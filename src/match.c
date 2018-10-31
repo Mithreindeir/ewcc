@@ -4,7 +4,6 @@ struct ir_stmt *find_stmt_match(struct pattern_state *state)
 {
 	if (!state->entry) return NULL;
 	int offset = 0, ns = 0;
-	int match = 0;
 	struct ir_stmt *iter=NULL, *a=state->entry;
 
 	for (int i = 0; i < state->num_patts; i++) {
@@ -13,23 +12,15 @@ struct ir_stmt *find_stmt_match(struct pattern_state *state)
 		if (offset + ns > state->num_spatts) {
 			break;
 		}
-		match = 1;
+		int nm;
 		/*first check if the statement types are right*/
-		for (int j = 0; j < ns; j++) {
-			if (!match_pattern(state->splist+j+offset, ns-j, iter)) {
-				match = 0;
-				break;
-			}
-			iter = iter->next;
-			if (!iter) {
-				if ((j+1) < ns)
-					match = 0;
+		for (nm = 0; nm < ns && iter; nm++, iter=iter->next) {
+			if (!match_pattern(state->splist+nm+offset, ns-nm, iter)) {
 				break;
 			}
 		}
-		if (match) {
-			a = state->plist[i].value(a);
-			//a = state->callback(a, state->plist[i].value);
+		if (nm == ns) {
+			a = state->callback(a, state->plist[i].value);
 		}
 
 		offset += ns;

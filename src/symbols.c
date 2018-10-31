@@ -66,15 +66,17 @@ void set_type(struct symbol_table *scope, char *ident, struct type *type)
 	memcpy(s->identifier, ident, len);
 	s->identifier[len] = 0;
      	s->type = type;
+	s->size = resolve_size(type);
 	scope->syms[scope->num_syms - 1] = s;
 }
+
 
 unsigned alloc_type(struct symbol_table *scope, char *ident)
 {
 	struct symbol *sym = get_symbol(scope, ident);
 	if (!sym) return 0;
 	/*For now, default to integer*/
-	scope->fp += 4;
+	scope->fp += sym->size;
 	sym->offset = scope->fp;
 	return scope->fp;
 }

@@ -60,6 +60,7 @@ struct vertex *pop(struct vstk *stk);
 int degree(struct vertex *v);
 
 void fill_stack(struct vertex **graph, int num, struct vstk *stk, int k);
+/*Given interference graph and number of colors, will color the graph*/
 void color_graph(struct vertex **graph, int num, int k);
 
 

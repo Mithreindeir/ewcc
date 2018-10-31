@@ -22,11 +22,22 @@
 #define RET(n) (n->child)
 #define IDENT(n) (((union value*)n->child)->ident)
 #define CNUM(n) (((union value*)n->child)->cnum)
+#define CAST(n) (n->inf->type)
+
+/*For codegen*/
+#define TYPE(n) ((n)->inf->type)
+#define TLIST(n) ((n)->inf->truelist)
+#define FLIST(n) ((n)->inf->falselist)
+#define TLIST_REF(n) ((struct ir_list**)&(n)->inf->truelist)
+#define FLIST_REF(n) ((struct ir_list**)&(n)->inf->falselist)
+
 
 /*Explicit Node Type*/
 enum node_type {
 	/*Empty for grammar */
 	node_empty,
+	/*Casting*/
+	node_cast,
 	/*Expressions */
 	node_ident,
 	node_cnum,
@@ -114,6 +125,7 @@ struct unop {
 	enum operator   op;
 };
 
+/*Declaration*/
 struct declaration {
 	char *ident;
 	struct type *type;

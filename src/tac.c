@@ -1,5 +1,6 @@
 #include "tac.h"
 
+/*Not a 1-1 mapping, so generate jump table instead of mapping array*/
 enum stmt_type map_stmt(enum operator op)
 {
 	switch (op) {
@@ -25,36 +26,21 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 	struct node *last = context->parent;
 	context->parent = n;
 	switch (n->type) {
-	case node_ident:
-		r = ident_emit(context, IDENT(n), result);
-		break;
-	case node_cnum:
-		r = from_cnum(CNUM(n));
-		break;
-	case node_unop:/*Unary operations*/
+	case node_block: 	block_emit(context, BLOCK(n)); break;
+	case node_cond: 	cond_emit(context, COND(n)); break;
+	case node_decl: 	decl_emit(context, DECL(n)); break;
+	case node_loop:		loop_emit(context, LOOP(n)); break;
+	case node_ident:    	r = ident_emit(context, IDENT(n), result); break;
+	case node_cnum:		r = from_cnum(CNUM(n)); break;
+	case node_unop:
 		r = unop_emit(context, UNOP(n), result);
+		/*The final value gets the type of the unary expression*/
+		if (r &&& TYPE(n)) r->size = resolve_size(TYPE(n));
 		break;
-	case node_binop: /*If the type is assign, get the address of the lhs and assign the rhs to it*/
+	case node_binop:
 		r = binop_emit(context, BINOP(n), result);
-		break;
-	case node_block:
-		context->scope = BLOCK(n)->scope;
-		for (int i = 0; i < BLOCK(n)->num_stmt; i++) {
-			generate_from_node(BLOCK(n)->stmt_list[i], context, IGNORE);
-			/*Merge it into the block*/
-			TLIST(n)=merge(TLIST(n), TLIST(BLOCK(n)->stmt_list[i]));
-			FLIST(n)=merge(FLIST(n), FLIST(BLOCK(n)->stmt_list[i]));
-		}
-		context->scope = BLOCK(n)->scope->parent;
-		break;
-	case node_cond:
-		cond_emit(context, COND(n));
-		break;
-	case node_decl: /*emit an alloca, and optional assign statement*/
-		decl_emit(context, DECL(n));
-		break;
-	case node_loop:
-		loop_emit(context, LOOP(n));
+		/*The final value gets the type of the binary expression*/
+		if (r &&& TYPE(n)) r->size = resolve_size(TYPE(n));
 		break;
 	case node_func:
 		generate_from_node(FUNC(n)->body, context, IGNORE);
@@ -78,10 +64,29 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		emit(context, s);
 		FLIST(n) = make_list(emit_jump(context, -1, UNCONDITIONAL));
 		break;
-	default: exit(-1); break;
+	case node_cast:
+		r = generate_from_node(n->child, context, result);
+		break;
+	default:
+		printf("Unknown AST Node\n");
+		exit(-1);
+		break;
 	}
 	context->parent = last;
 	return r;
+}
+
+void block_emit(struct generator *context, struct block *b)
+{
+	struct node *p = context->parent;
+	context->scope = b->scope;
+	for (int i = 0; i < b->num_stmt; i++) {
+		generate_from_node(b->stmt_list[i], context, IGNORE);
+		/*Merge it into the block*/
+		TLIST(p)=merge(TLIST(p), TLIST(b->stmt_list[i]));
+		FLIST(p)=merge(FLIST(p), FLIST(b->stmt_list[i]));
+	}
+	context->scope = b->scope->parent;
 }
 
 void cond_emit(struct generator *context, struct cond *c)
@@ -149,8 +154,8 @@ void decl_emit(struct generator *context, struct declaration *decl)
 		emit(context, stmt);
 		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
-		stmt->arg1 = generate_from_node(decl->initializer, context, VALUE);
-		stmt->result = from_sym(s);
+		stmt->arg2 = generate_from_node(decl->initializer, context, VALUE);
+		stmt->arg1 = from_sym(s);
 	}
 	emit(context, stmt);
 }
@@ -161,6 +166,15 @@ struct ir_operand *ident_emit(struct generator *context, char *ident, int result
 	//if (result == IGNORE) return NULL;
 	struct symbol *s = get_symbol(context->scope, ident);
 	if (result == ADDRESS) return from_sym(s);
+	/*Arrays are converted to pointers to the first member of the array*/
+	if (TYPE(context->parent) && TYPE(context->parent)->type == type_array) {
+		struct ir_stmt *stmt = ir_stmt_init();
+		stmt->type = stmt_addr;
+		stmt->result = from_reg(context->reg_cnt++);
+		stmt->arg1 = from_sym(s);
+		emit(context, stmt);
+		return copy(stmt->result);
+	}
 	/*If the value is asked for then emit a load instruction with the symbol address*/
 	struct ir_stmt *stmt = ir_stmt_init();
 	stmt->type = stmt_load;
@@ -186,8 +200,8 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u, int resu
 		struct ir_operand *lreg = copy(stmt->result), *preg = stmt->arg1;
 		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
-		stmt->result = generate_from_node(u->term, context, ADDRESS);
-		stmt->arg1 = lreg;
+		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
+		stmt->arg2 = lreg;
 		emit(context, stmt);
 		/*Post inc/dec returns the old value in a register, then increments
 		 * contents at the address*/
@@ -195,6 +209,11 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u, int resu
 			return result != IGNORE ? copy(preg) : NULL;
 		else /*Pre inc/dec increments it first then returns the final register*/
 			return result != IGNORE ? copy(lreg) : NULL;
+	} else if (stmt->type == stmt_load && TYPE(u->term)->type == type_array) {
+		/*Arrays are not pointers to pointers to arrays, just pointers to arrays
+		 * So remove the first dereference if storing in an array*/
+		if (result==ADDRESS) stmt->type = stmt_move;
+		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
 	} else if (stmt->type == stmt_load && result == ADDRESS) {
 		//Do not dereference, if an address is needed as a result
 		free(stmt);
@@ -222,8 +241,12 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b, int re
 	stmt->type = map_stmt(op);
 	/*Store dereferences an address, and stores the rhs value in it*/
 	if (stmt->type == stmt_store) {
-		stmt->arg1 = 	generate_from_node(b->rhs, context, VALUE);
-		stmt->result = generate_from_node(b->lhs, context, ADDRESS);
+		/*Uses arg1 instead of result because the write is a side effect*/
+		stmt->arg2 = 	generate_from_node(b->rhs, context, VALUE);
+		stmt->arg1 = generate_from_node(b->lhs, context, ADDRESS);
+		emit(context, stmt);
+		//return result != IGNORE ? copy(stmt->arg1) : NULL;
+		return result != IGNORE ? (result == ADDRESS ? copy(stmt->arg1) : copy(stmt->arg2)) : NULL;
 	} else if (op == o_and) {
 		/*And short circuit only evaluates the first expression if it is false*/
 		int between = REQ_LABEL(context);
@@ -257,6 +280,21 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b, int re
 	return result != IGNORE ? copy(stmt->result) : NULL;
 }
 
+void eval_size(struct ir_stmt *stmt)
+{
+	int dfsize = 0;
+	if (stmt->result && stmt->result->size) dfsize = stmt->result->size;
+	else if (stmt->arg1 && stmt->arg1->size) dfsize = stmt->arg1->size;
+	else if (stmt->arg2 && stmt->arg2->size) dfsize = stmt->arg2->size;
+
+	if (stmt->result && !stmt->result->size)
+		stmt->result->size = dfsize;
+	if (stmt->arg1 && !stmt->arg1->size)
+		stmt->arg1->size = dfsize;
+	if (stmt->arg2 && !stmt->arg2->size)
+		stmt->arg2->size = dfsize;
+}
+
 struct ir_stmt *emit_label(struct generator *context, int label)
 {
 	struct ir_stmt *stmt = ir_stmt_init();
@@ -280,6 +318,7 @@ struct ir_stmt *emit_jump(struct generator *context, int label, int conditional)
 
 void emit(struct generator *context, struct ir_stmt *stmt)
 {
+	eval_size(stmt);
 	if (!context->head) {
 		context->head = stmt;
 		context->cur = stmt;
@@ -302,18 +341,21 @@ struct ir_stmt *ir_stmt_init()
 
 struct ir_operand *copy(struct ir_operand *oper)
 {
+	struct ir_operand *cpy = NULL;
 	if (oper->type == oper_reg)
-		return from_reg(oper->val.virt_reg);
+		cpy = from_reg(oper->val.virt_reg);
 	else if (oper->type == oper_sym)
-		return from_sym(oper->val.sym);
+		cpy = from_sym(oper->val.sym);
 	else if (oper->type == oper_cnum)
-		return from_cnum(oper->val.constant);
-	return NULL;
+		cpy = from_cnum(oper->val.constant);
+	if (cpy) cpy->size = oper->size;
+	return cpy;
 }
 
 struct ir_operand *from_reg(int reg)
 {
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
+	oper->size = 0;
 	oper->type = oper_reg;
 	oper->val.virt_reg = reg;
 	return oper;
@@ -321,7 +363,12 @@ struct ir_operand *from_reg(int reg)
 
 struct ir_operand *from_sym(struct symbol *s)
 {
+	if (!s) {
+		printf("Unresolved symbol!\n");
+		exit (-1);
+	}
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
+	oper->size = s->size;
 	oper->type = oper_sym;
 	oper->val.sym = s;
 	return oper;
@@ -330,6 +377,7 @@ struct ir_operand *from_sym(struct symbol *s)
 struct ir_operand *from_ident(char *ident)
 {
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
+	oper->size = 0;
 	oper->type = oper_sym;
 	oper->val.ident = ident;
 	return oper;
@@ -338,6 +386,7 @@ struct ir_operand *from_ident(char *ident)
 struct ir_operand *from_cnum(long cnum)
 {
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
+	oper->size = INT_TYPE_SIZE;//Default constant size is integer
 	oper->type = oper_cnum;
 	oper->val.constant = cnum;
 	return oper;

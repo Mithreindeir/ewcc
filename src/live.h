@@ -23,15 +23,13 @@
  *
  * */
 
-struct range {
-	int reg;
-	int def, kill;
-};
-
 /*Basic Block*/
 struct bb {
-	struct ir_stmt *blk, *lst;
+	struct ir_stmt * blk, * lst;
 	int len;
+	/*Variables that are spilled to registers*/
+	struct ir_operand **rmap;
+	int num_op;
 
 	/*Successors and Predeccessors of the basic block*/
 	struct bb **succ, **pred;
@@ -47,7 +45,6 @@ struct bb {
 
 	/*IR Register input/outputs*/
 	int *in, nin, *out, nout;
-	/*For dead code analysis*/
 	int visited;
 };
 
@@ -61,6 +58,8 @@ void def(struct bb *blk, struct ir_stmt *s);
 void use(struct bb *blk, struct ir_stmt *s);
 /*Calculate use/def*/
 void bb_set(struct bb *blk);
+/*Overwrite temp registers*/
+void bb_creg(struct bb *blk);
 /*Adds a value to an int array*/
 void intarr_add(int **arr, int *num, int val);
 

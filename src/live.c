@@ -124,8 +124,10 @@ void bb_set(struct bb *blk)
 	int *kill = calloc(blk->nvert, sizeof(int)), nkill = blk->nvert;
 
 	while (cur && iter < blk->len) {
-		if (cur->result && cur->result->type == oper_reg) {
-			defd[bb_get_treg(blk, cur->result->val.virt_reg)] = iter+1;
+		/*Stores do not overwrite registers*/
+		if (cur->result && cur->result->type == oper_reg && cur->type != stmt_store) {
+			defd[bb_get_treg(blk, cur->result->val.virt_reg)] = iter;
+			kill[bb_get_treg(blk, cur->result->val.virt_reg)] = iter;
 		}
 		/*set kill*/
 		if (cur->arg1 && cur->arg1->type == oper_reg) {
@@ -137,12 +139,22 @@ void bb_set(struct bb *blk)
 		cur = cur->next;
 		iter++;
 	}
+	/*Get the line number*/
+	struct ir_stmt *cnt = blk->blk;
+	int pl = 0;
+	while (cnt) {
+		pl++;
+		cnt = cnt->prev;
+	}
+
+	for (int i = 0; i < nkill; i++)
+		printf("R%d is defined at %d and killed at %d\n",blk->graph[i]->ocolor, pl+defd[i], pl+kill[i]);
 
 	/*Construct interference graph*/
 	for (int i = 0; i < ndefd; i++) {
 		for (int j = 0; j < nkill; j++) {
 			if (j == i) continue;
-			if (kill[j] < defd[i] || defd[j] > kill[i])
+			if (kill[j] < (defd[i]+1) || (defd[j]+1) > kill[i])
 				continue;
 			struct vertex *v2 = blk->graph[j];
 			struct vertex *v = blk->graph[i];
@@ -154,6 +166,7 @@ void bb_set(struct bb *blk)
 				}
 			}
 			if (!added) {
+				printf("R%d interferes with R%d\n", v->ocolor, v2->ocolor);
 				add_edge(v, v2);
 			}
 		}
@@ -161,6 +174,43 @@ void bb_set(struct bb *blk)
 
 	free(kill);
 	free(defd);
+}
+
+void bb_creg(struct bb *bb)
+{
+	if (!bb) return;
+	if (bb->visited) return;
+	bb->visited = 1;
+	color_graph(bb->graph, bb->nvert, 4);
+	struct ir_stmt *stmt = bb->blk;
+	int ln = 0;
+	while (stmt && ln < bb->len) {
+		struct ir_operand *op[3] = { stmt->result, stmt->arg1, stmt->arg2 };
+		for (int i = 0; i < 3; i++) {
+			if (op[i] && op[i]->type == oper_reg) {
+				/*Find it in the graph*/
+				int idx = bb_get_treg(bb, op[i]->val.virt_reg);
+				op[i]->val.virt_reg = bb->graph[idx]->color;
+			}
+		}
+		/*Remove useless move statements*/
+		if (stmt->type == stmt_move && stmt->result && stmt->arg1) {
+			int v1 = stmt->result->val.virt_reg;
+			int v2 = stmt->arg1->val.virt_reg;
+			if (v1 == v2) {
+				stmt->prev->next = stmt->next;
+				stmt->next->prev = stmt->prev;
+				struct ir_stmt *sv = stmt->prev;
+				ir_stmt_free(stmt);
+				stmt = sv;
+			}
+		}
+		stmt = stmt->next;
+		ln++;
+	}
+	for (int i = 0; i < bb->nsucc; i++) {
+		bb_creg(bb->succ[i]);
+	}
 }
 
 struct bb **cfg(struct ir_stmt *entry, int *len)
@@ -215,9 +265,24 @@ struct bb **cfg(struct ir_stmt *entry, int *len)
 		}
 	}
 
-	/*Get rid of dangling blocks (simple dead code analysis could happen here)*/
-	for (int i = 0; i < nbb; i++) {
-		if (!bbs[i]->pred && !bbs[i]->succ) {
+	/*Get rid of dangling blocks, ignoring entry point*/
+	for (int i = 1; i < nbb; i++) {
+		if (!bbs[i]->pred) {
+			/*Unlink dead code*/
+			struct ir_stmt *cur, *next, *prev = (next = (cur = bbs[i]->blk))->prev;
+			if (prev) {
+				int ln = 0;
+				while (cur && ln < bbs[i]->len) {
+					next = cur->next;
+					ir_stmt_free(cur);
+					ln++;
+					cur = next;
+				}
+				prev->next = cur;
+				if (cur) {
+					cur->prev = prev;
+				}
+			}
 			bb_free(bbs[i]);
 			bbs[i] = NULL;
 		}

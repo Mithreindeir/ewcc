@@ -27,6 +27,33 @@ void bb_debug(struct bb *bb)
 	for (int i = 0; i < bb->nvert; i++)
 		printf("Temp R%d = Machine Reg %d\n", bb->graph[i]->ocolor, bb->graph[i]->color);
 	printf("------------------------------------\n");
+	stmt = bb->blk;
+	ln = 0;
+	while (stmt && ln < bb->len) {
+		if (stmt->result && stmt->result->type == oper_reg) {
+			for (int i = 0; i < bb->nvert; i++) {
+				if (bb->graph[i]->ocolor == stmt->result->val.virt_reg) {
+					stmt->result->val.virt_reg = bb->graph[i]->color;
+				}
+			}
+		}
+		if (stmt->arg1 && stmt->arg1->type == oper_reg) {
+			for (int i = 0; i < bb->nvert; i++) {
+				if (bb->graph[i]->ocolor == stmt->arg1->val.virt_reg) {
+					stmt->arg1->val.virt_reg = bb->graph[i]->color;
+				}
+			}
+		}
+		if (stmt->arg2 && stmt->arg2->type == oper_reg) {
+			for (int i = 0; i < bb->nvert; i++) {
+				if (bb->graph[i]->ocolor == stmt->arg2->val.virt_reg) {
+					stmt->arg2->val.virt_reg = bb->graph[i]->color;
+				}
+			}
+		}
+		stmt = stmt->next;
+		ln++;
+	}
 	printf("\n");
 	for (int i = 0; i < bb->nsucc; i++) {
 		bb_debug(bb->succ[i]);
@@ -44,12 +71,22 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 			char c = fmt[i + 1];
 			if (c >= '0' && c < '3')
 				ir_operand_debug(cop[fmt[i + 1] - '0']);
-			else printf("%d", stmt->label);
+			else if (c == 'l') printf("%d", stmt->label);
+			i++;
+		} else if (fmt[i] == '!' && (i + 1) < len) {
+			char c = fmt[i + 1];
+			if (c >= '0' && c < '3')
+				ir_operand_size_debug(cop[fmt[i + 1] - '0']);
 			i++;
 		} else {
 			printf("%c", fmt[i]);
 		}
-	}
+ 	}
+	return;
+	printf(";\t");
+	if (stmt->result) ir_operand_size_debug(stmt->result);
+	if (stmt->arg1) ir_operand_size_debug(stmt->arg1);
+	if (stmt->arg2) ir_operand_size_debug(stmt->arg2);
 }
 
 void ir_operand_debug(struct ir_operand *oper)
@@ -66,6 +103,21 @@ void ir_operand_debug(struct ir_operand *oper)
 		case oper_cnum: printf("#%ld", oper->val.constant); 	break;
 		default: break;
 	}
+}
+
+void ir_operand_size_debug(struct ir_operand *oper)
+{
+	/*print size*/
+	if (oper->size==0)
+		printf("n");
+	else if (oper->size==1)
+		printf("b");
+	else if (oper->size==2)
+		printf("w");
+	else if (oper->size==4)
+		printf("dw");
+	else if (oper->size==8)
+		printf("qw");
 }
 
 void ir_stmt_debug(struct ir_stmt *stmt)
@@ -202,6 +254,15 @@ void node_debug(struct node *n)
 		depth_str[di++] = ' ';
 		depth_str[di++] = ' ';
 		node_debug(RET(n));
+		di -= 2;
+		break;
+	case node_cast:
+		printf("cast: ");
+		print_type(TYPE(n));
+		printf("\n");
+		depth_str[di++] = ' ';
+		depth_str[di++] = ' ';
+		node_debug(n->child);
 		di -= 2;
 		break;
 	default:

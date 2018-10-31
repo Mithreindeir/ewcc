@@ -13,10 +13,11 @@
 #define AG1 opat_arg1
 #define AG2 opat_arg2
 #define REG opat_reg
-#define IMM opat_cnum
-#define MEM opat_sym
+#define IMM opat_imm
+#define MEM opat_mem
 
 
+/*Flags for Pattern Matching*/
 /*Source/destination for comparisons*/
 #define SRC 	1
 #define DST 	2
@@ -46,13 +47,13 @@ struct pattern {
 	/*Pattern can have multiple statement patterns attached*/
 	int num_stmt;
 	/*String/callback/etc*/
-	struct ir_stmt *(*value)(struct ir_stmt *);
+	void *value;
 };
 
 /*Input to the find function*/
 struct pattern_state {
 	struct ir_stmt *entry;
-	struct ir_stmt *(*callback)(struct ir_stmt *cur, void*match_val);
+	struct ir_stmt *(*callback)(struct ir_stmt *cur, void*val);
 
 	struct pattern *plist;
 	struct stmt_pattern *splist;

@@ -419,11 +419,19 @@ int parse_dir_declarator(struct parser *p, struct declaration *decl)
 	}
 	while ((t = match(p, t_lbrack)) || (t = match(p, t_lparen))) {
 		if (t->type == t_lbrack) {
+			struct expr *cexpr;
+			if (!(cexpr=parse_expr(p)))
+				syntax_error(p, "Missing constant expression in array decl");
+			if (cexpr->type != node_cnum)
+				syntax_error(p, "Only constant value cexprs implemented right now");
 			if (!match(p, t_rbrack))
 				syntax_error(p,
 					     "Missing right bracket in array declaration");
+			struct type *arr;
 			decl->type =
-			    types_merge(decl->type, type_init(type_array));
+			    types_merge(decl->type, (arr=type_init(type_array)));
+			arr->info.elem = CNUM(cexpr);
+			node_free(cexpr);
 		} else if (t->type == t_lparen) {
 			/*Declaration list */
 			int paramc = 0;

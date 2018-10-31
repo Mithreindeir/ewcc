@@ -2,7 +2,6 @@
 #define SYMBOLS_H
 
 #include "types.h"
-
 /*Because the symbol tables operate on a per scope level,
  * the small amount of average local variables just isn't worth
  * amortizing the cost of using an efficient average lookup
@@ -11,7 +10,7 @@
 /*Each architecture must provide a mechanism for allocating local variables,
  * eg: x86alloc("a") -> ebp-0x8, globals are left for linking */
 struct symbol {
-	unsigned long offset;
+	unsigned long offset, size;
 	char *identifier;
 	struct type *type;
 };
@@ -30,6 +29,7 @@ void symbol_table_debug(struct symbol_table *scope);
 
 struct type *get_type(struct symbol_table *scope, const char *ident);
 void set_type(struct symbol_table *scope, char *ident, struct type *type);
+int resolve_size(struct type *type);
 struct symbol *get_symbol(struct symbol_table *scope, const char *ident);
 unsigned alloc_type(struct symbol_table *scope, char *ident);
 unsigned long get_offset(struct symbol_table *scope, char *ident);

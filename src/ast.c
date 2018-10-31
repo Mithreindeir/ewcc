@@ -59,8 +59,18 @@ void node_free(struct node *n)
 		type_free(FUNC(n)->ftype);
 		node_free(FUNC(n)->body);
 		break;
+	case node_cast:
+		node_free(n->child);
+		n->child = NULL;/*Directly stores child*/
+		break;
+	case node_return:
+		node_free(RET(n));
+		n->child = NULL;
+		break;
 	}
 
+	if (n->inf && TYPE(n))
+		type_free(TYPE(n));
 	free(n->inf);
 	free(n->child);
 	free(n);

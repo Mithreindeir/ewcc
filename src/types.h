@@ -5,6 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lexer.h"
+#define TARGET_X86
+#ifdef TARGET_X86
+#include "x86types.def"
+#endif
+
+
 
 #define NUM_OPERATORS 31
 #define NUM_DTYPES 9
@@ -95,7 +101,7 @@ struct type {
 	union {
 		enum type_specifier data_type;
 		struct func_type fcn;
-		int arr_elements;
+		int elem;
 	} info;
 	enum info_type type;
 	struct type *next;
@@ -121,6 +127,8 @@ struct type *type_init(enum info_type node_type);
 /*Merges two linked lists of type info, with t1 at the front, and returns it*/
 struct type *types_merge(struct type *t1, struct type *t2);
 void type_free(struct type *head);
+struct type *type_copy(struct type *top);
+int resolve_size(struct type *type);
 void print_type(struct type *head);
 int cmp_types(struct type *a, struct type *b);
 struct type *dereference_type(struct type *a);

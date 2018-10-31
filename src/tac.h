@@ -16,11 +16,6 @@
 #define REQ_LABEL(ctx) (ctx->label_cnt++)
 #define RELATIONAL(t) (t >= stmt_lt)
 
-#define TLIST_REF(n) ((struct ir_list**)&(n)->inf->truelist)
-#define FLIST_REF(n) ((struct ir_list**)&(n)->inf->falselist)
-#define TLIST(n) ((n)->inf->truelist)
-#define FLIST(n) ((n)->inf->falselist)
-
 #define NUM_STMT 	25
 #define STMT_STR(x) 	stmt_##x
 /*X Macros to generate statement mapping and automatically debug printing
@@ -56,9 +51,10 @@
 	STMT(bor, 	o_bor, 	"|") 		\
 	STMT(bnot, 	o_bnot, "~") 		\
 	/*Memory*/ 				\
-	STMT(load, 	o_deref,"LD $0, [$1]")	\
-	STMT(store, 	o_asn,  "ST [$0], $1") 	\
-	STMT(addr, 	o_ref,  "$0 = &$1") 	\
+	STMT(load, 	o_deref,"LD $0, !1[$1]")	\
+	/*Ptr dereference and not register result, so use arg1/arg2*/\
+	STMT(store, 	o_asn,  "ST !1[$1], $2") 	\
+	STMT(addr, 	o_ref,  "$0 = &[$1]") 	\
 	/*Relational*/ 				\
 	STMT(lt, 	o_lt, 	"$1 < $2") 	\
 	STMT(lte, 	o_lte, 	"$1 <= $2") 	\
@@ -84,6 +80,7 @@ enum oper_type {
 
 struct ir_operand {
 	enum oper_type type;
+	int size;
 	union {
 		int virt_reg;
 		struct symbol *sym;
@@ -127,6 +124,7 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 void cond_emit(struct generator *context, struct cond *c);
 void loop_emit(struct generator *context, struct loop *l);
 void decl_emit(struct generator *context, struct declaration *d);
+void block_emit(struct generator *context, struct block *b);
 struct ir_operand *ident_emit(struct generator *context, char *ident, int result);
 struct ir_operand *unop_emit(struct generator *context, struct unop *u, int result);
 struct ir_operand *binop_emit(struct generator *context, struct binop *b, int result);
@@ -148,6 +146,7 @@ struct ir_operand *from_reg(int reg);
 struct ir_operand *from_cnum(long cnum);
 struct ir_operand *from_sym(struct symbol *s);
 struct ir_operand *from_ident(char *ident);
+void eval_size(struct ir_stmt *stmt);
 void ir_operand_free(struct ir_operand *oper);
 void ir_stmt_free(struct ir_stmt *stmt);
 

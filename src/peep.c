@@ -1,14 +1,17 @@
 #include "peep.h"
 
+struct ir_stmt *(*reducing[5])(struct ir_stmt *a) = {
+	reduce_goto, reduce_cgoto, reduce_load, reduce_store_load, reduce_label
+};
+
 struct stmt_pattern pattern_stmts[NUM_PSTMT] = {
 #define PATTERN(a, fc, ...) __VA_ARGS__,
 	PATTERN_TABLE
 #undef PATTERN
 };
 
-
 struct pattern peephole_patterns[NUM_PATTERNS] = {
-#define PATTERN(a, func, ...) {a, func},
+#define PATTERN(a, fidx, ...) {a, (void*)fidx},
 	PATTERN_TABLE
 #undef PATTERN
 };
@@ -17,7 +20,7 @@ void optimize(struct ir_stmt *start)
 {
 	if (!start) return;
 	struct pattern_state state;
-	//state.callback = find_handle;
+	state.callback = find_handle;
 	state.splist = pattern_stmts;
 	state.plist = peephole_patterns;
 	state.num_spatts = NUM_PSTMT;
@@ -27,6 +30,13 @@ void optimize(struct ir_stmt *start)
 		start = find_stmt_match(&state);
 		start = start->next;
 	}
+}
+
+struct ir_stmt *find_handle(struct ir_stmt *cur, void *val)
+{
+	//void* cast to int is prob UB, but should always work
+	int fidx = (int)(uintptr_t)val;
+	return reducing[fidx](cur);
 }
 
 struct ir_stmt *reduce_goto(struct ir_stmt *a)
@@ -100,7 +110,7 @@ struct ir_stmt * reduce_store_load(struct ir_stmt *a)
 	/*Change the load to a move, with the previous stores operand as the value*/
 	ld->type = stmt_move;
 	ir_operand_free(ld->arg1);
-	ld->arg1 = copy(a->arg1);
+	ld->arg1 = copy(a->arg2);
 	/*Now all occurances of ld->result can be replaced with ld->arg1 */
 	struct ir_stmt *cur = ld->next;
 	while (cur) {
