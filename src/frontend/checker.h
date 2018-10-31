@@ -6,14 +6,13 @@
 
 #include "parser.h"
 #include "symbols.h"
-#include "debug.h"
+#include "../debug.h"
 
 #define LHS 0
 #define RHS 1
 #define NEUTRAL 3
 
-/*Per Scope Generic Hash Table for symbols*/
-
+/*Integer rank*/
 int rank(struct type *a);
 /*Traverses the AST and populates the symbol table*/
 /*If A can be implicitly cast to B, return AST cast node, otherwise NULL*/

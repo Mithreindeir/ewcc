@@ -4,8 +4,8 @@
 #include "tac.h"
 #include "live.h"
 #include "ralloc.h"
-#include "ast.h"
-#include "symbols.h"
+#include "frontend/symbols.h"
+#include "frontend/ast.h"
 
 extern const char *stmt_debug_str[NUM_STMT];
 

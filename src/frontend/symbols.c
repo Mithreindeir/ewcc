@@ -75,10 +75,13 @@ unsigned alloc_type(struct symbol_table *scope, char *ident)
 {
 	struct symbol *sym = get_symbol(scope, ident);
 	if (!sym) return 0;
+	/*If parent's frame pointer is greater than the current frame pointer, update it*/
+	if (scope->parent && scope->parent->fp > scope->fp)
+		scope->fp = scope->parent->fp;
 	/*For now, default to integer*/
 	scope->fp += sym->size;
 	sym->offset = scope->fp;
-	return scope->fp;
+	return sym->offset;
 }
 
 unsigned long get_offset(struct symbol_table *scope, char *ident)

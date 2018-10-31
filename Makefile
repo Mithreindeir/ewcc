@@ -1,6 +1,6 @@
 CC = gcc
 EXE = rcc
-SOURCES = $(wildcard src/*.c)
+SOURCES = $(wildcard src/*.c src/frontend/*.c)
 OBJS = $(SOURCES:.c=.o)
 UNAME_S := $(shell uname -s)
 

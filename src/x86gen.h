@@ -3,7 +3,7 @@
 
 #include "match.h"
 #include "debug.h"
-#include "symbols.h"
+#include "frontend/symbols.h"
 
 /*Code generation for X86*/
 /*Target architectures must implement:

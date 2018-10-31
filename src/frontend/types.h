@@ -7,7 +7,7 @@
 #include "lexer.h"
 #define TARGET_X86
 #ifdef TARGET_X86
-#include "x86types.def"
+#include "../x86types.def"
 #endif
 
 

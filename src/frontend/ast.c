@@ -93,6 +93,26 @@ struct stmt *cond_init(struct expr *cond, struct stmt *body,
 	return node_init(node_cond, c);
 }
 
+struct stmt *func_init(char *ident, struct type *ftype, struct stmt *body)
+{
+	struct func *f = malloc(sizeof(struct func));
+	f->ident = ident;
+	f->ftype = ftype;
+	f->body = body;
+	return node_init(node_func, f);
+}
+
+struct expr *call_init(char *func, struct expr **args, int argc)
+{
+	struct call *c = malloc(sizeof(struct call));
+
+	c->func = func;
+	c->argv = args;
+	c->argc = argc;
+
+	return node_init(node_call, c);
+}
+
 struct stmt *block_init()
 {
 	struct block *b = malloc(sizeof(struct block));

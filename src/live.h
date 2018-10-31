@@ -27,7 +27,7 @@
 struct bb {
 	struct ir_stmt * blk, * lst;
 	int len;
-	/*Variables that are spilled to registers*/
+	/*Variables that are attempted to get stored in registers*/
 	struct ir_operand **rmap;
 	int num_op;
 

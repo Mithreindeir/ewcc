@@ -1,9 +1,9 @@
 #ifndef TAC_H
 #define TAC_H
 
-#include "types.h"
-#include "symbols.h"
-#include "ast.h"
+#include "frontend/types.h"
+#include "frontend/symbols.h"
+#include "frontend/ast.h"
 
 /*Some flag values*/
 #define ADDRESS 	1

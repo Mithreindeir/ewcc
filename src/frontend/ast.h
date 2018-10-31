@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "types.h"
 #include "symbols.h"
+#include "types.h"
 
 /*Implicit AST Nodes defined for clarity*/
 #define stmt node
@@ -43,6 +43,7 @@ enum node_type {
 	node_cnum,
 	node_unop,
 	node_binop,
+	node_call,
 	/*Statements */
 	node_func,
 	node_block,
@@ -90,6 +91,13 @@ struct func {
 	char *ident;
 	struct type *ftype;
 	struct stmt *body;
+};
+
+/*Function call*/
+struct call {
+	char *func;
+	int argc;
+	struct expr **argv;
 };
 
 /*Compound statement, contains symbol table of scope*/
@@ -153,6 +161,8 @@ struct stmt *loop_init(struct expr *init, struct expr *cond,
 		       struct expr *iter, struct stmt *body);
 struct stmt *cond_init(struct expr *cond, struct stmt *body,
 		       struct stmt *other);
+struct stmt *func_init(char *ident, struct type *ftype, struct stmt *body);
+struct expr *call_init(char *func, struct expr **args, int argc);
 struct expr *value_ident(const char *ident);
 struct expr *value_num(const char *num);
 

@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "lexer.h"
-#include "parser.h"
-#include "checker.h"
+#include "frontend/parser.h"
+#include "frontend/checker.h"
 #include "debug.h"
 #include "tac.h"
 #include "peep.h"
