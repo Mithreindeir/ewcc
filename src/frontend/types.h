@@ -60,7 +60,7 @@ enum operator  {
 };
 
 #define TYPE_TABLE 			\
-	TYPE(type_none, "none", t_none), 	\
+	TYPE(type_void, "void", t_void), 	\
 	TYPE(type_int, 	"int", 	t_int), 	\
 	TYPE(type_char, "char", t_char), 	\
 	TYPE(type_short, "short", t_short), 	\

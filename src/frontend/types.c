@@ -116,7 +116,7 @@ void print_type(struct type *head)
 	case type_array:
 		printf("arr(");
 		print_type(head->next);
-		printf(")");
+		printf(", %d)", head->info.elem);
 		break;
 	case type_fcn:
 		printf("fcn( ");
@@ -147,11 +147,6 @@ int cmp_types(struct type *a, struct type *b)
 	    && a->info.data_type != b->info.data_type)
 		return 0;
 	return 1;
-}
-
-struct type *dereference_type(struct type *a)
-{
-	return a ? a->next : NULL;
 }
 
 enum operator  dec_oper(char *str)

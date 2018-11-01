@@ -32,7 +32,6 @@ int implicit_cast(struct node **a, struct node **b, int favor)
 	int ra = rank(ta), rb = rank(tb);
 	if (ra && rb) {
 		if ((ra > rb && favor == NEUTRAL) || favor == LHS) {
-			//printf("Integer promotion\n");
 			if (favor == LHS && rb > ra) {
 				printf("Warning: Possible data loss in implicit cast from ");
 				print_type(ta);
@@ -94,21 +93,69 @@ void node_check(struct node *n, struct symbol_table *scope)
 				printf("\n");
 			}
 			TYPE(n) = type_copy(TYPE(UNOP(n)->term)->next);
+		} else {
+			TYPE(n) = type_copy(TYPE(UNOP(n)->term));
 		}
 		break;
 	case node_binop:
 		node_check(BINOP(n)->lhs, scope);
 		node_check(BINOP(n)->rhs, scope);
 		int favor = NEUTRAL;
+		struct type *lt = TYPE(BINOP(n)->lhs), *rt = TYPE(BINOP(n)->rhs);
 		/*Cast in binary operations goes to larger size unless it is an assignment, then favor lhs*/
 		if (BINOP(n)->op == o_asn) favor = LHS;
-		if (!cmp_types(TYPE(BINOP(n)->lhs), TYPE(BINOP(n)->rhs))) {
+		if (!cmp_types(lt, rt)) {
 			struct binop *b = BINOP(n);
 			if (!implicit_cast(&b->lhs, &b->rhs, favor)) {
 				type_error(n, TYPE(BINOP(n)->lhs), TYPE(BINOP(n)->rhs));
 			}
 		}
+		/*Pointer arithmetic check*/
+		struct node *v1=NULL, *v2=NULL;
+		if (BINOP(n)->lhs && lt && (lt->type == type_ptr || lt->type == type_array)) {
+			v1 = BINOP(n)->lhs;
+		} if (BINOP(n)->rhs && rt && (rt->type == type_ptr || rt->type == type_array)) {
+			v2 = BINOP(n)->rhs;
+		}
+		/*The only valid operation with two pointers is subtraction*/
+		if (v1 && v2 && BINOP(n)->op != o_sub) {
+			printf("Invalid pointer arithmetic\n");
+			node_debug(n);
+			exit(-1);
+		}
+		if (v1 || v2) {
+			if (!v1) {
+				v1 = v2;
+				v2 = BINOP(n)->lhs;
+			} else if (!v2) {
+				v2 = BINOP(n)->rhs;
+			}
+			/*v1 is a pointer*/
+			if (BINOP(n)->op != o_add && BINOP(n)->op != o_sub) {
+				printf("Invalid pointer arithmetic\n");
+				node_debug(n);
+				exit(-1);
+			}
+			/*Syntactic sugar for scaling pointer by their size*/
+			//if its a constant, just multiply it
+			int psize = resolve_size(TYPE(v1)->next);
+			//if its a constant, just multiply it
+			if (v2 && v2->type == node_cnum) {
+				CNUM(v2) *= psize;
+			} else if (psize != 1) {//otherwise add multiplication operation in AST
+				union value *s = malloc(sizeof(union value));
+				s->cnum = psize;
+				struct expr *scale = binop_init(o_mul, node_init(node_cnum, s), v2);
+				TYPE(scale) = type_copy(TYPE(v2));
+				if (v2 == BINOP(n)->lhs) BINOP(n)->lhs = scale;
+				else BINOP(n)->rhs = scale;
+			}
+		}
 		TYPE(n) = type_copy(TYPE(BINOP(n)->lhs));
+		break;
+	case node_unit:
+		for (int i = 0; i < UNIT(n)->num_decls; i++)
+			node_check(UNIT(n)->edecls[i], scope);
 		break;
 	case node_block:
 		for (int i = 0; i < BLOCK(n)->num_stmt; i++) {
@@ -117,8 +164,39 @@ void node_check(struct node *n, struct symbol_table *scope)
 		}
 		break;
 	case node_func:
-		  node_check(FUNC(n)->body, scope);
-		  break;
+		node_check(FUNC(n)->body, scope);
+		break;
+	case node_return:
+		node_check(RET(n), scope);
+		break;
+	case node_call:
+		node_check(CALL(n)->func, scope);
+		struct type *ct = TYPE(CALL(n)->func);
+		while (ct && ct->type == type_ptr) ct = ct->next;
+		if (ct->type != type_fcn) {
+			printf("Error: called object ");
+			node_debug(n);
+			printf(" is not of function or function pointer type\n");
+			exit(-1);
+		}
+		if (ct->info.fcn.paramc != CALL(n)->argc) {
+			printf("Number of parameter mismatch\n");
+			node_debug(n);
+			exit(-1);
+		}
+		/*Type check parameters*/
+		for (int i = 0; i < CALL(n)->argc; i++) {
+			node_check(CALL(n)->argv[i], scope);
+			struct type *pt = ct->info.fcn.paramt[i];
+			if (!cmp_types(pt, TYPE(CALL(n)->argv[i]))) {
+				if (!explicit_cast(pt, &CALL(n)->argv[i])) {
+					printf("In argument %d:\n", i+1);
+					type_error(n, pt, TYPE(CALL(n)->argv[i]));
+				}
+			}
+		}
+		TYPE(n) = type_copy(ct->next);
+		break;
 	case node_cond:
 		node_check(COND(n)->condition, scope);
 		node_check(COND(n)->body, scope);

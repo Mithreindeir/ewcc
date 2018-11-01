@@ -92,7 +92,8 @@ int main()
 	free(str);
 
 	struct parser *p = parser_init(tok, toks);
-	struct stmt *s = parse_function(p);
+	//struct stmt *s = parse_function(p);
+	struct stmt *s = parse_unit(p);
 	if (s) {
 		node_check(s, NULL);
 		printf("AST Tree View\n");

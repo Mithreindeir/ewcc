@@ -73,8 +73,7 @@ struct ir_stmt *reduce_cgoto(struct ir_stmt *a)
 	}
 
 	a->label = g->label;
-	g->prev->next = g->next;
-	g->next->prev = g->prev;
+	unlink(g);
 	ir_stmt_free(g);
 	return a;
 }
@@ -83,8 +82,7 @@ struct ir_stmt * reduce_load(struct ir_stmt *a)
 {
 	struct ir_stmt *ld = a;
 	struct ir_stmt *ld2 = a->next;
-	ld2->prev->next = ld2->next;
-	ld2->next->prev = ld2->prev;
+	unlink(ld2);
 	struct ir_stmt *cur = ld->next;
 	while (cur) {
 		if (compare_operands(ld2->result, cur->arg1)) {
@@ -129,8 +127,7 @@ struct ir_stmt * reduce_store_load(struct ir_stmt *a)
 
 		cur = cur->next;
 	}
-	ld->prev->next = ld->next;
-	ld->next->prev = ld->prev;
+	unlink(ld);
 	struct ir_stmt *n = ld->next;
 	ir_stmt_free(ld);
 	return n;
@@ -142,8 +139,7 @@ struct ir_stmt *reduce_label(struct ir_stmt *a)
 	struct ir_stmt *l2 = a->next;
 	if (!l2) return a;
 	int sl = l2->label;
-	l2->next->prev = l2->prev;
-	l2->prev->next = l2->next;
+	unlink(l2);
 
 	ir_stmt_free(l2);
 	struct ir_stmt *cur = a;

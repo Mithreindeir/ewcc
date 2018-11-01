@@ -59,6 +59,12 @@ void node_free(struct node *n)
 		type_free(FUNC(n)->ftype);
 		node_free(FUNC(n)->body);
 		break;
+	case node_call:
+		node_free(CALL(n)->func);
+		for (int i = 0; i < CALL(n)->argc; i++)
+			node_free(CALL(n)->argv[i]);
+		free(CALL(n)->argv);
+		break;
 	case node_cast:
 		node_free(n->child);
 		n->child = NULL;/*Directly stores child*/
@@ -67,6 +73,12 @@ void node_free(struct node *n)
 		node_free(RET(n));
 		n->child = NULL;
 		break;
+	case node_unit:
+		for (int i = 0; i < UNIT(n)->num_decls; i++) {
+			node_free(UNIT(n)->edecls[i]);
+		}
+		free(UNIT(n)->edecls);
+		break;
 	}
 
 	if (n->inf && TYPE(n))
@@ -74,6 +86,21 @@ void node_free(struct node *n)
 	free(n->inf);
 	free(n->child);
 	free(n);
+}
+
+struct node *unit_init()
+{
+	struct unit *u = malloc(sizeof(struct unit));
+	u->edecls= NULL, u->num_decls = 0;
+	return node_init(node_unit, u);
+}
+
+void unit_add(struct unit *u, struct stmt *edecl)
+{
+	u->num_decls++;
+	if (!u->edecls) u->edecls = malloc(sizeof(struct stmt*));
+	else u->edecls = realloc(u->edecls, sizeof(struct stmt*)*u->num_decls);
+	u->edecls[u->num_decls-1] = edecl;
 }
 
 struct stmt *loop_init(struct expr *init, struct expr *cond,
@@ -102,7 +129,7 @@ struct stmt *func_init(char *ident, struct type *ftype, struct stmt *body)
 	return node_init(node_func, f);
 }
 
-struct expr *call_init(char *func, struct expr **args, int argc)
+struct expr *call_init(struct expr *func, struct expr **args, int argc)
 {
 	struct call *c = malloc(sizeof(struct call));
 
@@ -111,6 +138,14 @@ struct expr *call_init(char *func, struct expr **args, int argc)
 	c->argc = argc;
 
 	return node_init(node_call, c);
+}
+
+void call_addarg(struct call *c, struct expr *e)
+{
+	c->argc++;
+	if (!c->argv) c->argv = malloc(sizeof(struct expr *));
+	else c->argv = realloc(c->argv, sizeof(struct expr*)*c->argc);
+	c->argv[c->argc-1] = e;
 }
 
 struct stmt *block_init()

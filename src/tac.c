@@ -30,6 +30,8 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 	case node_cond: 	cond_emit(context, COND(n)); break;
 	case node_decl: 	decl_emit(context, DECL(n)); break;
 	case node_loop:		loop_emit(context, LOOP(n)); break;
+	case node_cast:		r = generate_from_node(n->child, context, result); break;
+	case node_call: 	r = call_emit(context, CALL(n), result); break;
 	case node_ident:    	r = ident_emit(context, IDENT(n), result); break;
 	case node_cnum:		r = from_cnum(CNUM(n)); break;
 	case node_unop:
@@ -41,6 +43,10 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		r = binop_emit(context, BINOP(n), result);
 		/*The final value gets the type of the binary expression*/
 		if (r &&& TYPE(n)) r->size = resolve_size(TYPE(n));
+		break;
+	case node_unit:
+		for (int i = 0; i < UNIT(n)->num_decls; i++)
+			generate_from_node(UNIT(n)->edecls[i], context, IGNORE);
 		break;
 	case node_func:
 		generate_from_node(FUNC(n)->body, context, IGNORE);
@@ -64,11 +70,9 @@ struct ir_operand *generate_from_node(struct node *n, struct generator *context,
 		emit(context, s);
 		FLIST(n) = make_list(emit_jump(context, -1, UNCONDITIONAL));
 		break;
-	case node_cast:
-		r = generate_from_node(n->child, context, result);
-		break;
+	case node_empty: break;
 	default:
-		printf("Unknown AST Node\n");
+		printf("Unknown AST Node %d\n", n->type);
 		exit(-1);
 		break;
 	}
@@ -118,6 +122,7 @@ void cond_emit(struct generator *context, struct cond *c)
 	}
 }
 
+/*Emits jump to comparison with jumps at the end to the body to continue the loop*/
 void loop_emit(struct generator *context, struct loop *l)
 {
 	int cmp = REQ_LABEL(context), start = REQ_LABEL(context), end = REQ_LABEL(context);
@@ -143,6 +148,7 @@ void loop_emit(struct generator *context, struct loop *l)
 	}
 }
 
+/*For now, allocate appropriate size after frame pointer, and set the symbols value*/
 void decl_emit(struct generator *context, struct declaration *decl)
 {
 	struct ir_stmt *stmt = ir_stmt_init();
@@ -158,6 +164,30 @@ void decl_emit(struct generator *context, struct declaration *decl)
 		stmt->arg1 = from_sym(s);
 	}
 	emit(context, stmt);
+}
+
+/*Generates statments to set the params to the args, then inserts a call, optionally saving result*/
+struct ir_operand *call_emit(struct generator *context, struct call *c, int result)
+{
+	struct ir_stmt *s = ir_stmt_init();
+	struct type *ct = TYPE(context->parent);
+	/*If function has return type, then store result in register*/
+	if (ct && ct->type == type_datatype) {
+		if (ct->info.data_type != type_void) {
+			s->result = from_reg(context->reg_cnt++);
+		}
+	}
+	for (int i = c->argc-1; i >= 0; i--) {
+		struct ir_stmt *p = ir_stmt_init();
+		p->type = stmt_param;
+		p->arg1 = from_cnum(i);
+		p->arg2 = generate_from_node(c->argv[i], context, VALUE);
+		emit(context, p);
+	}
+	s->type = stmt_call;
+	s->arg1 = generate_from_node(c->func, context, ADDRESS);
+	emit(context, s);
+	return result != IGNORE ? copy(s->result) : NULL;
 }
 
 /*If the result is asked for, returns either the address or value paired with a symbol*/
@@ -209,7 +239,7 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u, int resu
 			return result != IGNORE ? copy(preg) : NULL;
 		else /*Pre inc/dec increments it first then returns the final register*/
 			return result != IGNORE ? copy(lreg) : NULL;
-	} else if (stmt->type == stmt_load && TYPE(u->term)->type == type_array) {
+	} else if (stmt->type == stmt_load &&  TYPE(u->term)->type == type_array) {
 		/*Arrays are not pointers to pointers to arrays, just pointers to arrays
 		 * So remove the first dereference if storing in an array*/
 		if (result==ADDRESS) stmt->type = stmt_move;
@@ -220,7 +250,7 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u, int resu
 		return generate_from_node(u->term, context, VALUE);
 	} else if (stmt->type == stmt_load) {
 		/*If there is a deref/ref involved, let the parent decide*/
-		stmt->arg1 = generate_from_node(u->term, context, result);
+		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
 	} else if (stmt->type == stmt_addr) {
 		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
 	} else {
@@ -263,8 +293,8 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b, int re
 		return NULL;
 	} else if (RELATIONAL(stmt->type)) {
 		/*Relational operators are actually jumps*/
-		stmt->arg1 = generate_from_node(b->lhs, context, IGNORE);
-		stmt->arg2 = generate_from_node(b->rhs, context, IGNORE);
+		stmt->arg1 = generate_from_node(b->lhs, context, VALUE);
+		stmt->arg2 = generate_from_node(b->rhs, context, VALUE);
 		emit(context, stmt);
 		/*The conditionally jumps if the expression is false*/
 		TLIST(context->parent) = make_list(emit_jump(context, -1, CONDITIONAL));
@@ -374,15 +404,6 @@ struct ir_operand *from_sym(struct symbol *s)
 	return oper;
 }
 
-struct ir_operand *from_ident(char *ident)
-{
-	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
-	oper->size = 0;
-	oper->type = oper_sym;
-	oper->val.ident = ident;
-	return oper;
-}
-
 struct ir_operand *from_cnum(long cnum)
 {
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
@@ -392,6 +413,7 @@ struct ir_operand *from_cnum(long cnum)
 	return oper;
 }
 
+/*The values are borrowed from the AST*/
 void ir_operand_free(struct ir_operand *oper)
 {
 	if (!oper) return;

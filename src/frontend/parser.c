@@ -30,7 +30,7 @@ struct expr *parse_postfix(struct parser *p)
 	if (!(e = parse_primary(p)))
 		return NULL;
 	while ((t = match(p, t_inc)) || (t = match(p, t_dec))
-	       || (t = match(p, t_lbrack))) {
+	       || (t = match(p, t_lbrack)) || (t = match(p, t_lparen))) {
 		if (t->type == t_lbrack) {
 			struct expr *sub;
 			if (!(sub = parse_expr(p)))
@@ -41,6 +41,16 @@ struct expr *parse_postfix(struct parser *p)
 					     "Missing right bracket in subscript expression");
 			e = binop_init(o_add, e, sub);
 			e = unop_init(o_deref, e);
+		} else if (t->type == t_lparen) {
+			struct expr *call = call_init(e, NULL, 0);
+			struct expr *arg;
+			while ((arg=parse_asn_expr(p))) {
+				call_addarg(CALL(call), arg);
+				if (!match(p, t_comma)) break;
+			}
+			if (!match(p, t_rparen))
+				syntax_error(p, "Missing right parentheses in function call");
+			e = call;
 		} else {
 			e = unop_init(t->type ==
 				      t_inc ? o_postinc : o_postdec, e);
@@ -341,6 +351,17 @@ struct stmt *parse_stmt(struct parser *p)
 		return node_init(node_empty, NULL);
 
 	return NULL;
+}
+
+struct node *parse_unit(struct parser *p)
+{
+	struct node *unit=NULL;
+	struct stmt *s;
+	while ((s=parse_function(p))) {
+		if (!unit) unit = unit_init();
+		unit_add(UNIT(unit), s);
+	}
+	return unit;
 }
 
 #undef stmt

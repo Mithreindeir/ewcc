@@ -176,6 +176,9 @@ void bb_set(struct bb *blk)
 	free(defd);
 }
 
+/*Register Allocation - Right now its just register renaming, because local variables
+ * are not considered, however the register allocation algorithm works well for scratch regs,
+ * and the extension won't be hard later*/
 void bb_creg(struct bb *bb)
 {
 	if (!bb) return;

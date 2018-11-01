@@ -77,6 +77,6 @@ int compare_operands(struct ir_operand *a, struct ir_operand *b)
 	enum oper_type t = a->type;
 	if (t==oper_reg&&a->val.virt_reg==b->val.virt_reg) return 1;
 	if (t==oper_cnum&&a->val.constant==b->val.constant) return 1;
-	if (t==oper_sym&&!strcmp(a->val.ident,b->val.ident)) return 1;
+	if (t==oper_sym&&a->val.sym&&b->val.sym&&!strcmp(a->val.sym->identifier,b->val.sym->identifier)) return 1;
 	return 0;
 }

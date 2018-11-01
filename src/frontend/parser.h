@@ -31,8 +31,9 @@ struct stmt *parse_expr_stmt(struct parser *p);
 struct stmt *parse_block(struct parser *p);
 struct stmt *parse_cond(struct parser *p);
 struct stmt *parse_loop(struct parser *p);
-struct stmt *parse_stmt(struct parser *p);
-
 struct stmt *parse_jump(struct parser *p);
+
+struct stmt *parse_stmt(struct parser *p);
+struct node *parse_unit(struct parser *p);
 
 #endif

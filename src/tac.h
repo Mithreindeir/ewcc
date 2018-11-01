@@ -16,8 +16,14 @@
 #define REQ_LABEL(ctx) (ctx->label_cnt++)
 #define RELATIONAL(t) (t >= stmt_lt)
 
-#define NUM_STMT 	25
+#define NUM_STMT 	26
 #define STMT_STR(x) 	stmt_##x
+
+#define unlink(i) {\
+	if (i->prev) i->prev->next = i->next;\
+	if (i->next) i->next->prev = i->prev;\
+}
+
 /*X Macros to generate statement mapping and automatically debug printing
  * IR tries to be solid intermediate between the AST and assembly
  * while staying architecture independent.
@@ -30,13 +36,14 @@
 	STMT(invalid, 	, 	"")		\
 	STMT(label, 	, 	"L$l") 		\
 	/**/ 					\
-	STMT(call, 	, 	"$1()") 	\
+	STMT(call, 	, 	"$0 = $1()") 	\
 	STMT(ugoto, 	, 	"goto L$l") 	\
 	STMT(cgoto, 	, 	"if true L$l") 	\
 	STMT(alloc, 	, 	"alloc $1")	\
 	/*Move, must be on registers and immediates*/\
 	STMT(move, 	, 	"$0 = $1")\
-	/*Set the return value*/\
+	/*Indeterminate Statements bc largely ABI dependent*/\
+	STMT(param, 	, 	"param_$1 $2")\
 	STMT(retval, 	, 	"retval $1")\
 	/*Return from procedure*/\
 	STMT(ret, 	, 	"ret")
@@ -51,9 +58,9 @@
 	STMT(bor, 	o_bor, 	"|") 		\
 	STMT(bnot, 	o_bnot, "~") 		\
 	/*Memory*/ 				\
-	STMT(load, 	o_deref,"LD $0, !1[$1]")	\
+	STMT(load, 	o_deref,"LD $0, @1[$1]")	\
 	/*Ptr dereference and not register result, so use arg1/arg2*/\
-	STMT(store, 	o_asn,  "ST !1[$1], $2") 	\
+	STMT(store, 	o_asn,  "ST @1[$1], $2") 	\
 	STMT(addr, 	o_ref,  "$0 = &[$1]") 	\
 	/*Relational*/ 				\
 	STMT(lt, 	o_lt, 	"$1 < $2") 	\
@@ -61,7 +68,7 @@
 	STMT(gt, 	o_gt, 	"$1 > $2") 	\
 	STMT(gte, 	o_gte, 	"$1 >= $2") 	\
 	STMT(eq, 	o_eq, 	"$1 == $2") 	\
-	STMT(neq, 	o_neq, 	"$1 != $2")
+	STMT(neq, 	o_neq, 	"$1 != $2") 	\
 
 /*Some operations must be transformed*/
 #define STMT(a, b, c) STMT_STR(a),
@@ -84,7 +91,6 @@ struct ir_operand {
 	union {
 		int virt_reg;
 		struct symbol *sym;
-		char *ident;
 		long constant;
 		char *cstr;
 	} val;
@@ -125,6 +131,7 @@ void cond_emit(struct generator *context, struct cond *c);
 void loop_emit(struct generator *context, struct loop *l);
 void decl_emit(struct generator *context, struct declaration *d);
 void block_emit(struct generator *context, struct block *b);
+struct ir_operand *call_emit(struct generator *context, struct call *c, int result);
 struct ir_operand *ident_emit(struct generator *context, char *ident, int result);
 struct ir_operand *unop_emit(struct generator *context, struct unop *u, int result);
 struct ir_operand *binop_emit(struct generator *context, struct binop *b, int result);
@@ -132,7 +139,8 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b, int re
 /*Generation Helper functions*/
 enum stmt_type map_stmt(enum operator op);
 struct ir_operand *copy(struct ir_operand *oper);
-void emit(struct generator *context, struct ir_stmt *stmt);
+
+void 		emit(struct generator *context, struct ir_stmt *stmt);
 struct ir_stmt *emit_label(struct generator *context, int label);
 struct ir_stmt *emit_jump(struct generator *context, int label, int conditional);
 
@@ -145,7 +153,7 @@ struct ir_stmt *ir_stmt_init();
 struct ir_operand *from_reg(int reg);
 struct ir_operand *from_cnum(long cnum);
 struct ir_operand *from_sym(struct symbol *s);
-struct ir_operand *from_ident(char *ident);
+
 void eval_size(struct ir_stmt *stmt);
 void ir_operand_free(struct ir_operand *oper);
 void ir_stmt_free(struct ir_stmt *stmt);

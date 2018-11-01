@@ -12,6 +12,7 @@
 #define expr node
 
 /*To Make it Obvious where casting is used, all casting of AST nodes must use the macros*/
+#define UNIT(n) ((struct unit*)n->child)
 #define LOOP(n) ((struct loop*)n->child)
 #define BLOCK(n) ((struct block*)n->child)
 #define COND(n) ((struct cond*)n->child)
@@ -19,9 +20,10 @@
 #define UNOP(n) ((struct unop*)n->child)
 #define DECL(n) ((struct declaration*)n->child)
 #define FUNC(n) ((struct func*)n->child)
-#define RET(n) (n->child)
+#define CALL(n) ((struct call*)n->child)
 #define IDENT(n) (((union value*)n->child)->ident)
 #define CNUM(n) (((union value*)n->child)->cnum)
+#define RET(n) (n->child)
 #define CAST(n) (n->inf->type)
 
 /*For codegen*/
@@ -36,8 +38,10 @@
 enum node_type {
 	/*Empty for grammar */
 	node_empty,
-	/*Casting*/
+	/*Cast*/
 	node_cast,
+	/*Translation unit*/
+	node_unit,
 	/*Expressions */
 	node_ident,
 	node_cnum,
@@ -86,6 +90,12 @@ struct node {
  * union { constant-int, identifier }
  * */
 
+/*Translation unit*/
+struct unit {
+	struct stmt **edecls;
+	int num_decls;
+};
+
 /*Function definition*/
 struct func {
 	char *ident;
@@ -95,9 +105,8 @@ struct func {
 
 /*Function call*/
 struct call {
-	char *func;
 	int argc;
-	struct expr **argv;
+	struct expr *func, **argv;
 };
 
 /*Compound statement, contains symbol table of scope*/
@@ -143,6 +152,7 @@ struct declaration {
 
 /*Primary expression or unit value in expression*/
 union value {
+	/*It might make more sense for this to be a symbol*/
 	char *ident;
 	long cnum;
 	double cfloat;
@@ -162,8 +172,12 @@ struct stmt *loop_init(struct expr *init, struct expr *cond,
 struct stmt *cond_init(struct expr *cond, struct stmt *body,
 		       struct stmt *other);
 struct stmt *func_init(char *ident, struct type *ftype, struct stmt *body);
-struct expr *call_init(char *func, struct expr **args, int argc);
+struct expr *call_init(struct expr *func, struct expr **args, int argc);
+void call_addarg(struct call *c, struct expr *e);
 struct expr *value_ident(const char *ident);
 struct expr *value_num(const char *num);
+
+struct node *unit_init();
+void unit_add(struct unit *u, struct stmt *edecl);
 
 #endif

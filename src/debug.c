@@ -73,7 +73,7 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 				ir_operand_debug(cop[fmt[i + 1] - '0']);
 			else if (c == 'l') printf("%d", stmt->label);
 			i++;
-		} else if (fmt[i] == '!' && (i + 1) < len) {
+		} else if (fmt[i] == '@' && (i + 1) < len) {
 			char c = fmt[i + 1];
 			if (c >= '0' && c < '3')
 				ir_operand_size_debug(cop[fmt[i + 1] - '0']);
@@ -83,10 +83,6 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 		}
  	}
 	return;
-	printf(";\t");
-	if (stmt->result) ir_operand_size_debug(stmt->result);
-	if (stmt->arg1) ir_operand_size_debug(stmt->arg1);
-	if (stmt->arg2) ir_operand_size_debug(stmt->arg2);
 }
 
 void ir_operand_debug(struct ir_operand *oper)
@@ -107,6 +103,7 @@ void ir_operand_debug(struct ir_operand *oper)
 
 void ir_operand_size_debug(struct ir_operand *oper)
 {
+	if (!oper) return;
 	/*print size*/
 	if (oper->size==0)
 		printf("n");
@@ -156,6 +153,9 @@ void node_debug(struct node *n)
 {
 	static char depth_str[256] = { 0 };
 	static int di = 0;
+	if (di > 250) {
+		di = 0;
+	}
 	if (!n)
 		return;
 	if (di)
@@ -182,6 +182,10 @@ void node_debug(struct node *n)
 		depth_str[di - 1] = ' ';
 		node_debug(BINOP(n)->rhs);
 		di -= 2;
+		break;
+	case node_unit:
+		for (int i = 0; i < UNIT(n)->num_decls; i++)
+			node_debug(UNIT(n)->edecls[i]);
 		break;
 	case node_block:
 		printf("block:\n");
@@ -228,6 +232,20 @@ void node_debug(struct node *n)
 		depth_str[di++] = ' ';
 		node_debug(FUNC(n)->body);
 		di -= 2;
+		break;
+	case node_call:
+		printf("call\n");
+		depth_str[di++] = ' ';
+		depth_str[di++] = '|';
+		node_debug(CALL(n)->func);
+		for (int i = 0; i < CALL(n)->argc;i++) {
+			if ((i + 1) >= CALL(n)->argc)
+				depth_str[di - 1] = ' ';
+			node_debug(CALL(n)->argv[i]);
+		}
+		depth_str[di-1] = ' ';
+		di -= 2;
+
 		break;
 	case node_decl:
 		printf("decl:");

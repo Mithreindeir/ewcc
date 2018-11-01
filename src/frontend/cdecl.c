@@ -114,7 +114,7 @@ struct declaration *parse_init_declarator(struct parser *p,
 /*Parameters are slightly modified declarations*/
 struct declaration *parse_param(struct parser *p)
 {
-	enum type_specifier dtype = type_none;
+	enum type_specifier dtype = type_void;
 	if (match(p, t_int))
 		dtype = type_int;
 	if (match(p, t_char))
@@ -127,7 +127,7 @@ struct declaration *parse_param(struct parser *p)
 
 struct stmt *parse_declaration(struct parser *p)
 {
-	enum type_specifier dtype = type_none;
+	enum type_specifier dtype = type_void;
 	if (match(p, t_int))
 		dtype = type_int;
 	if (match(p, t_char))
@@ -153,13 +153,11 @@ struct stmt *parse_declaration(struct parser *p)
 /*F = {decl_spec}* declarator param_list block*/
 struct stmt *parse_function(struct parser *p)
 {
-	enum type_specifier dtype = type_none;
-	if (match(p, t_int))
-		dtype = type_int;
-	if (match(p, t_char))
-		dtype = type_char;
-	if (!dtype)
-		return NULL;	/*technically wrong, types aren't required by the grammar */
+	enum type_specifier dtype = type_int;
+	if (match(p, t_void)) dtype=type_void;
+	else if (match(p, t_int))  dtype = type_int;
+	else if (match(p, t_char)) dtype = type_char;
+	else printf("Warning: return type defaults to int\n");
 	/*Validify function declaration, then parse body */
 	struct declaration *decl;
 	decl = malloc(sizeof(struct declaration));
