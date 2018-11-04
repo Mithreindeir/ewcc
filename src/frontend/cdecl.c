@@ -24,16 +24,19 @@ int parse_dir_declarator(struct parser *p, struct declaration *decl)
 	while ((t = match(p, t_lbrack)) || (t = match(p, t_lparen))) {
 		if (t->type == t_lbrack) {
 			struct expr *cexpr;
-			if (!(cexpr=parse_expr(p)))
-				syntax_error(p, "Missing constant expression in array decl");
+			if (!(cexpr = parse_expr(p)))
+				syntax_error(p,
+					     "Missing constant expression in array decl");
 			if (cexpr->type != node_cnum)
-				syntax_error(p, "Only constant value cexprs implemented right now");
+				syntax_error(p,
+					     "Only constant value cexprs implemented right now");
 			if (!match(p, t_rbrack))
 				syntax_error(p,
 					     "Missing right bracket in array declaration");
 			struct type *arr;
 			decl->type =
-			    types_merge(decl->type, (arr=type_init(type_array)));
+			    types_merge(decl->type,
+					(arr = type_init(type_array)));
 			arr->info.elem = CNUM(cexpr);
 			node_free(cexpr);
 		} else if (t->type == t_lparen) {
@@ -95,6 +98,7 @@ int parse_declarator(struct parser *p, struct declaration *decl)
 struct declaration *parse_init_declarator(struct parser *p,
 					  enum type_specifier dtype)
 {
+	int s = save(p);
 	struct declaration *decl;
 	decl = malloc(sizeof(struct declaration));
 	decl->initializer = NULL;
@@ -102,6 +106,7 @@ struct declaration *parse_init_declarator(struct parser *p,
 	decl->type = NULL;
 	if (!parse_declarator(p, decl)) {
 		free(decl);
+		restore(p, s);
 		return 0;
 	}
 
@@ -133,31 +138,54 @@ struct stmt *parse_declaration(struct parser *p)
 	if (match(p, t_char))
 		dtype = type_char;
 	if (!dtype)
-		return NULL;	/*technically wrong, types aren't required by the grammar */
-	struct declaration *decl = parse_init_declarator(p, dtype);
-	set_type(get_scope(p), decl->ident, decl->type);
-	if (match(p, t_semic))
-		return node_init(node_decl, decl);
-	if (!match(p, t_equal))
-		syntax_error(p,
-			     "Expected assignment expression after declaration");
-	struct expr *e = parse_asn_expr(p);
-	if (!e)
-		syntax_error(p, "Invalid initializer after declaration");
-	decl->initializer = e;
-	if (!match(p, t_semic))
-		syntax_error(p, "Expected ';' after initializer");
-	return node_init(node_decl, decl);
+		return NULL;
+	struct declaration_list *dlist=NULL;
+	struct declaration *decl, **decl_list = NULL;
+	int nd = 0, comma = 0, semic = 0;
+	while ((decl=parse_init_declarator(p, dtype))) {
+		comma = 0;
+		nd++;
+		if (!decl_list) decl_list = malloc(sizeof(struct declaration*));
+		else decl_list = realloc(decl_list, sizeof(struct declaration*)*nd);
+		set_type(get_scope(p), decl->ident, decl->type);
+		if (match(p, t_equal)) {
+			struct expr *e = parse_asn_expr(p);
+			if (!e)
+				syntax_error(p, "Invalid initializer after declaration");
+			decl->initializer = e;
+		}
+
+		decl_list[nd-1] = decl;
+		if (match(p, t_comma)) {
+			comma = 1;
+		} else if (match(p, t_semic)) {
+			semic = 1;
+			break;
+		}
+	}
+	if (comma) syntax_error(p, "Expected another declaration after comma");
+	if (!semic) syntax_error(p, "Missing semicolon after declaration");
+	if (nd) {
+		dlist = malloc(sizeof(struct declaration_list));
+		dlist->num_decls = nd;
+		dlist->decls = decl_list;
+	}
+	return node_init(node_decl_list, dlist);
 }
 
 /*F = {decl_spec}* declarator param_list block*/
 struct stmt *parse_function(struct parser *p)
 {
+	int s = save(p);
 	enum type_specifier dtype = type_int;
-	if (match(p, t_void)) dtype=type_void;
-	else if (match(p, t_int))  dtype = type_int;
-	else if (match(p, t_char)) dtype = type_char;
-	else printf("Warning: return type defaults to int\n");
+	if (match(p, t_void))
+		dtype = type_void;
+	else if (match(p, t_int))
+		dtype = type_int;
+	else if (match(p, t_char))
+		dtype = type_char;
+	else
+		printf("Warning: return type defaults to int\n");
 	/*Validify function declaration, then parse body */
 	struct declaration *decl;
 	decl = malloc(sizeof(struct declaration));
@@ -166,29 +194,33 @@ struct stmt *parse_function(struct parser *p)
 	decl->type = NULL;
 	if (!parse_declarator(p, decl)) {
 		free(decl);
+		restore(p, s);
 		return 0;
 	}
-	if (!decl->type) syntax_error(p, "Invalid declarator");
+	if (!decl->type)
+		syntax_error(p, "Invalid declarator");
 	/*The type must be a function */
 	if (decl->type->type != type_fcn) {
 		free(decl->ident);
 		type_free(decl->type);
 		free(decl);
+		restore(p, s);
 		return 0;
 	}
 
 	struct type *decldtype = type_init(type_datatype);
 	decldtype->info.data_type = dtype;
 	decl->type = types_merge(decl->type, decldtype);
-	set_type(get_scope(p), decl->ident, decl->type);
 	/*Create function from declaration */
 	struct stmt *block;
 	if (!(block = parse_block(p))) {
 		free(decl->ident);
 		type_free(decl->type);
 		free(decl);
+		restore(p, s);
 		return 0;
 	}
+	set_type(get_scope(p), decl->ident, decl->type);
 	struct stmt *fn = func_init(decl->ident, decl->type, block);
 	free(decl);
 	struct type *ftype = FUNC(fn)->ftype;
@@ -201,4 +233,3 @@ struct stmt *parse_function(struct parser *p)
 
 	return fn;
 }
-

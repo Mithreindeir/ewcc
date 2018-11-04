@@ -1,7 +1,8 @@
 #include "peep.h"
 
-struct ir_stmt *(*reducing[5])(struct ir_stmt *a) = {
-	reduce_goto, reduce_cgoto, reduce_load, reduce_store_load, reduce_label
+struct ir_stmt *(*reducing[5]) (struct ir_stmt * a) = {
+	reduce_goto, reduce_cgoto, reduce_load, reduce_store_load,
+	    reduce_label
 };
 
 struct stmt_pattern pattern_stmts[NUM_PSTMT] = {
@@ -11,14 +12,15 @@ struct stmt_pattern pattern_stmts[NUM_PSTMT] = {
 };
 
 struct pattern peephole_patterns[NUM_PATTERNS] = {
-#define PATTERN(a, fidx, ...) {a, (void*)fidx},
+#define PATTERN(a, fidx, ...) {a, fidx},
 	PATTERN_TABLE
 #undef PATTERN
 };
 
 void optimize(struct ir_stmt *start)
 {
-	if (!start) return;
+	if (!start)
+		return;
 	struct pattern_state state;
 	state.callback = find_handle;
 	state.splist = pattern_stmts;
@@ -27,16 +29,17 @@ void optimize(struct ir_stmt *start)
 	state.num_patts = NUM_PATTERNS;
 	while (start) {
 		state.entry = start;
-		start = find_stmt_match(&state);
+		if (!(start = find_stmt_match(&state))) {
+			start = state.entry;
+		}
 		start = start->next;
 	}
 }
 
-struct ir_stmt *find_handle(struct ir_stmt *cur, void *val)
+struct ir_stmt *find_handle(struct ir_stmt *cur, int ns, int val)
 {
-	//void* cast to int is prob UB, but should always work
-	int fidx = (int)(uintptr_t)val;
-	return reducing[fidx](cur);
+	(void) ns;
+	return reducing[val] (cur);
 }
 
 struct ir_stmt *reduce_goto(struct ir_stmt *a)
@@ -56,18 +59,27 @@ struct ir_stmt *reduce_cgoto(struct ir_stmt *a)
 	/*If the previous instruction is relational, swap that then remove the goto */
 	struct ir_stmt *p = a->prev;
 	struct ir_stmt *g = a->next;
-	if (!g) return a;
+	if (!g)
+		return a;
 	struct ir_stmt *gl = g->next;
-	if (!gl || !p) return a;
-	/*Flip the relational and change the cgoto to the goto's target*/
+	if (!gl || !p)
+		return a;
+	/*Flip the relational and change the cgoto to the goto's target */
 	if (RELATIONAL(p->type)) {
-		if (p->type == stmt_lt) p->type = stmt_gte;
-		else if (p->type == stmt_gt) p->type = stmt_lte;
-		else if (p->type == stmt_lte) p->type = stmt_gt;
-		else if (p->type == stmt_gte) p->type = stmt_lt;
-		else if (p->type == stmt_eq) p->type = stmt_neq;
-		else if (p->type == stmt_neq) p->type = stmt_eq;
-		else return a;
+		if (p->type == stmt_lt)
+			p->type = stmt_gte;
+		else if (p->type == stmt_gt)
+			p->type = stmt_lte;
+		else if (p->type == stmt_lte)
+			p->type = stmt_gt;
+		else if (p->type == stmt_gte)
+			p->type = stmt_lt;
+		else if (p->type == stmt_eq)
+			p->type = stmt_neq;
+		else if (p->type == stmt_neq)
+			p->type = stmt_eq;
+		else
+			return a;
 	} else {
 		return a;
 	}
@@ -78,7 +90,7 @@ struct ir_stmt *reduce_cgoto(struct ir_stmt *a)
 	return a;
 }
 
-struct ir_stmt * reduce_load(struct ir_stmt *a)
+struct ir_stmt *reduce_load(struct ir_stmt *a)
 {
 	struct ir_stmt *ld = a;
 	struct ir_stmt *ld2 = a->next;
@@ -100,12 +112,13 @@ struct ir_stmt * reduce_load(struct ir_stmt *a)
 	return ld;
 }
 
-struct ir_stmt * reduce_store_load(struct ir_stmt *a)
+struct ir_stmt *reduce_store_load(struct ir_stmt *a)
 {
-	/*Use the value of the previous store instead of load again*/
+	/*Use the value of the previous store instead of load again */
 	struct ir_stmt *ld = a->next;
-	if (!ld) return a;
-	/*Change the load to a move, with the previous stores operand as the value*/
+	if (!ld)
+		return a;
+	/*Change the load to a move, with the previous stores operand as the value */
 	ld->type = stmt_move;
 	ir_operand_free(ld->arg1);
 	ld->arg1 = copy(a->arg2);
@@ -135,23 +148,26 @@ struct ir_stmt * reduce_store_load(struct ir_stmt *a)
 
 struct ir_stmt *reduce_label(struct ir_stmt *a)
 {
-	/*If there is 2 labels, remove the 2nd and replace all occurances with the first*/
+	/*If there is 2 labels, remove the 2nd and replace all occurances with the first */
 	struct ir_stmt *l2 = a->next;
-	if (!l2) return a;
+	if (!l2)
+		return a;
 	int sl = l2->label;
 	unlink(l2);
 
 	ir_stmt_free(l2);
 	struct ir_stmt *cur = a;
-	/*loop forward and replace*/
+	/*loop forward and replace */
 	while (cur) {
-		if (cur->label == sl) cur->label = a->label;
+		if (cur->label == sl)
+			cur->label = a->label;
 		cur = cur->next;
 	}
-	/*loop backwards and replace*/
+	/*loop backwards and replace */
 	cur = a;
 	while (cur) {
-		if (cur->label == sl) cur->label = a->label;
+		if (cur->label == sl)
+			cur->label = a->label;
 		cur = cur->prev;
 	}
 	return a->prev;

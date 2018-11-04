@@ -47,7 +47,7 @@
 	STMT(retval, 	, 	"retval $1")\
 	/*Return from procedure*/\
 	STMT(ret, 	, 	"ret")
-	/*Arithmetic*/
+	/*Arithmetic */
 #define STMT_OPER_TABLE 			\
 	STMT(add, 	o_add, 	"$0 = $1 + $2") \
 	STMT(sub, 	o_sub, 	"$0 = $1 - $2") \
@@ -73,8 +73,7 @@
 /*Some operations must be transformed*/
 #define STMT(a, b, c) STMT_STR(a),
 enum stmt_type {
-	STMT_TABLE
-	STMT_OPER_TABLE
+	STMT_TABLE STMT_OPER_TABLE
 };
 #undef STMT
 
@@ -123,7 +122,9 @@ struct ir_stmt *ir_stmt_init();
 
 struct ir_stmt *generate(struct node *n);
 /*Generates TAC from AST node, and returns the value if it is an expression*/
-struct ir_operand *generate_from_node(struct node *n, struct generator *context, int result);
+struct ir_operand *generate_from_node(struct node *n,
+				      struct generator *context,
+				      int result);
 
 /*IR generation for AST nodes*/
 
@@ -131,18 +132,23 @@ void cond_emit(struct generator *context, struct cond *c);
 void loop_emit(struct generator *context, struct loop *l);
 void decl_emit(struct generator *context, struct declaration *d);
 void block_emit(struct generator *context, struct block *b);
-struct ir_operand *call_emit(struct generator *context, struct call *c, int result);
-struct ir_operand *ident_emit(struct generator *context, char *ident, int result);
-struct ir_operand *unop_emit(struct generator *context, struct unop *u, int result);
-struct ir_operand *binop_emit(struct generator *context, struct binop *b, int result);
+struct ir_operand *call_emit(struct generator *context, struct call *c,
+			     int result);
+struct ir_operand *ident_emit(struct generator *context, char *ident,
+			      int result);
+struct ir_operand *unop_emit(struct generator *context, struct unop *u,
+			     int result);
+struct ir_operand *binop_emit(struct generator *context, struct binop *b,
+			      int result);
 
 /*Generation Helper functions*/
-enum stmt_type map_stmt(enum operator op);
+enum stmt_type map_stmt(enum operator  op);
 struct ir_operand *copy(struct ir_operand *oper);
 
-void 		emit(struct generator *context, struct ir_stmt *stmt);
+void emit(struct generator *context, struct ir_stmt *stmt);
 struct ir_stmt *emit_label(struct generator *context, int label);
-struct ir_stmt *emit_jump(struct generator *context, int label, int conditional);
+struct ir_stmt *emit_jump(struct generator *context, int label,
+			  int conditional);
 
 struct ir_list *make_list(struct ir_stmt *n);
 struct ir_list *merge(struct ir_list *list1, struct ir_list *list2);

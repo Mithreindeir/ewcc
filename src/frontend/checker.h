@@ -12,6 +12,13 @@
 #define RHS 1
 #define NEUTRAL 3
 
+/*The semantic checker is responsible for giving every AST expression a type,
+ * as well as resolving some syntactic sugar*/
+
+/*Callback function in the array for each AST Type*/
+extern void (*ast_cb[])(struct node ** n, struct symbol_table * scope);
+
+
 /*Integer rank*/
 int rank(struct type *a);
 /*Traverses the AST and populates the symbol table*/
@@ -22,7 +29,7 @@ int explicit_cast(struct type *a, struct node **b);
 /*Prints type errors and node info*/
 void type_error(struct node *parent, struct type *a, struct type *b);
 /*Check the AST for type errors, and out of scope/undeclared variables*/
-void node_check(struct node *n, struct symbol_table *scope);
+void node_check(struct node **overwrite, struct symbol_table *scope);
 
 
 #endif

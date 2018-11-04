@@ -2,15 +2,17 @@
 
 #define STMT(a, b, c) c,
 const char *stmt_debug_str[NUM_STMT] = {
-	STMT_TABLE
-	STMT_OPER_TABLE
+	STMT_TABLE STMT_OPER_TABLE
 };
+
 #undef STMT
 
 void bb_debug(struct bb *bb)
 {
-	if (!bb) return;
-	if (bb->visited) return;
+	if (!bb)
+		return;
+	if (bb->visited)
+		return;
 	bb->visited = 1;
 	printf("Basic Block:\n");
 	printf("------------------------------------\n");
@@ -22,39 +24,6 @@ void bb_debug(struct bb *bb)
 		printf("\n");
 		stmt = stmt->next;
 	}
-	printf("Local Register Allocation:\n");
-	color_graph(bb->graph, bb->nvert, 4);
-	for (int i = 0; i < bb->nvert; i++)
-		printf("Temp R%d = Machine Reg %d\n", bb->graph[i]->ocolor, bb->graph[i]->color);
-	printf("------------------------------------\n");
-	stmt = bb->blk;
-	ln = 0;
-	while (stmt && ln < bb->len) {
-		if (stmt->result && stmt->result->type == oper_reg) {
-			for (int i = 0; i < bb->nvert; i++) {
-				if (bb->graph[i]->ocolor == stmt->result->val.virt_reg) {
-					stmt->result->val.virt_reg = bb->graph[i]->color;
-				}
-			}
-		}
-		if (stmt->arg1 && stmt->arg1->type == oper_reg) {
-			for (int i = 0; i < bb->nvert; i++) {
-				if (bb->graph[i]->ocolor == stmt->arg1->val.virt_reg) {
-					stmt->arg1->val.virt_reg = bb->graph[i]->color;
-				}
-			}
-		}
-		if (stmt->arg2 && stmt->arg2->type == oper_reg) {
-			for (int i = 0; i < bb->nvert; i++) {
-				if (bb->graph[i]->ocolor == stmt->arg2->val.virt_reg) {
-					stmt->arg2->val.virt_reg = bb->graph[i]->color;
-				}
-			}
-		}
-		stmt = stmt->next;
-		ln++;
-	}
-	printf("\n");
 	for (int i = 0; i < bb->nsucc; i++) {
 		bb_debug(bb->succ[i]);
 	}
@@ -65,56 +34,73 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 	struct ir_operand *cop[3] =
 	    { stmt->result, stmt->arg1, stmt->arg2 };
 	int len = strlen(fmt);
-	if (stmt->type != stmt_label) printf("\t");
+	if (stmt->type != stmt_label)
+		printf("\t");
 	for (int i = 0; i < len; i++) {
 		if (fmt[i] == '$' && (i + 1) < len) {
 			char c = fmt[i + 1];
 			if (c >= '0' && c < '3')
 				ir_operand_debug(cop[fmt[i + 1] - '0']);
-			else if (c == 'l') printf("%d", stmt->label);
+			else if (c == 'l')
+				printf("%d", stmt->label);
 			i++;
 		} else if (fmt[i] == '@' && (i + 1) < len) {
 			char c = fmt[i + 1];
 			if (c >= '0' && c < '3')
-				ir_operand_size_debug(cop[fmt[i + 1] - '0']);
+				ir_operand_size_debug(cop
+						      [fmt[i + 1] - '0']);
 			i++;
 		} else {
 			printf("%c", fmt[i]);
 		}
- 	}
+	}
 	return;
+	ir_operand_size_debug(cop[0]);
+	ir_operand_size_debug(cop[1]);
+	ir_operand_size_debug(cop[2]);
 }
 
 void ir_operand_debug(struct ir_operand *oper)
 {
-	if (!oper) return;
+	if (!oper)
+		return;
 	switch (oper->type) {
-		case oper_reg: printf("R%d", oper->val.virt_reg); 	break;
-		case oper_sym:
-			if (!oper->val.sym) break;
-			if (oper->val.sym->offset)
-				printf("fp-%ld", oper->val.sym->offset);
-			else printf("_%s", oper->val.sym->identifier);
+	case oper_reg:
+		printf("R%d", oper->val.virt_reg);
+		break;
+	case oper_sym:
+		if (!oper->val.sym)
 			break;
-		case oper_cnum: printf("#%ld", oper->val.constant); 	break;
-		default: break;
+		if (oper->val.sym->offset)
+			printf("fp-%ld", oper->val.sym->offset);
+		else
+			printf("_%s", oper->val.sym->identifier);
+		break;
+	case oper_cnum:
+		printf("#%ld", oper->val.constant);
+		break;
+	default:
+		break;
 	}
 }
 
 void ir_operand_size_debug(struct ir_operand *oper)
 {
-	if (!oper) return;
-	/*print size*/
-	if (oper->size==0)
+	if (!oper)
+		return;
+	/*print size */
+	if (oper->size == 0)
 		printf("n");
-	else if (oper->size==1)
+	else if (oper->size == 1)
 		printf("b");
-	else if (oper->size==2)
+	else if (oper->size == 2)
 		printf("w");
-	else if (oper->size==4)
+	else if (oper->size == 4)
 		printf("dw");
-	else if (oper->size==8)
+	else if (oper->size == 8)
 		printf("qw");
+	else
+		printf("[%d]", oper->size);
 }
 
 void ir_stmt_debug(struct ir_stmt *stmt)
@@ -160,6 +146,7 @@ void node_debug(struct node *n)
 		return;
 	if (di)
 		printf("%.*s`--", di - 1, depth_str);
+	//printf("%.*s`--(%d)", di - 1, depth_str, TYPE(n) ? resolve_size(TYPE(n)) : 0);
 	switch (n->type) {
 	case node_ident:
 		printf("ident: %s\n", IDENT(n));
@@ -238,25 +225,30 @@ void node_debug(struct node *n)
 		depth_str[di++] = ' ';
 		depth_str[di++] = '|';
 		node_debug(CALL(n)->func);
-		for (int i = 0; i < CALL(n)->argc;i++) {
+		for (int i = 0; i < CALL(n)->argc; i++) {
 			if ((i + 1) >= CALL(n)->argc)
 				depth_str[di - 1] = ' ';
 			node_debug(CALL(n)->argv[i]);
 		}
-		depth_str[di-1] = ' ';
+		depth_str[di - 1] = ' ';
 		di -= 2;
 
 		break;
-	case node_decl:
-		printf("decl:");
-		print_type(DECL(n)->type);
-		printf(" %s\n", DECL(n)->ident);
-		depth_str[di++] = ' ';
-		depth_str[di++] = ' ';
-		if (DECL(n)->initializer) {
-			node_debug(DECL(n)->initializer);
+	case node_decl_list:
+		for (int i = 0; i < DECL_L(n)->num_decls; i++) {
+			if (i != 0)
+				printf("%.*s`--", di - 1, depth_str);
+			struct declaration *d = DECL_L(n)->decls[i];
+			printf("decl:");
+			depth_str[di++] = ' ';
+			depth_str[di++] = '|';
+			print_type(d->type);
+			printf(" %s\n", d->ident);
+			if (d->initializer) {
+				node_debug(d->initializer);
+			}
+			di -= 2;
 		}
-		di -= 2;
 		break;
 	case node_empty:
 		printf("empty\n");

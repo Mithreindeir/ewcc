@@ -34,13 +34,13 @@
 
 /*Right now uses O(n^2) memory usage, will rewrite later*/
 struct vertex {
-	/*Original IR register to be replaced*/
+	/*Original IR register to be replaced */
 	int ocolor;
-	/*New register*/
+	/*New register */
 	int color;
-	/*Removed flag to prevent graph changes*/
+	/*Removed flag to prevent graph changes */
 	int removed;
-	/*Edges are just pointers to vertices*/
+	/*Edges are just pointers to vertices */
 	struct vertex **siblings;
 	int num_siblings;
 };

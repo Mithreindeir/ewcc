@@ -36,7 +36,7 @@ enum oper_pattern {
 
 /*Constant statement type to match, and flexible operand patterns*/
 struct stmt_pattern {
-	/*Flags as modifiers to the patterns to simplify compare logic*/
+	/*Flags as modifiers to the patterns to simplify compare logic */
 	unsigned int flags;
 	enum stmt_type st_type;
 	enum oper_pattern result, arg1, arg2;
@@ -44,16 +44,17 @@ struct stmt_pattern {
 
 /*A pattern can have multiple stmt_patterns attached, and a value*/
 struct pattern {
-	/*Pattern can have multiple statement patterns attached*/
+	/*Pattern can have multiple statement patterns attached */
 	int num_stmt;
-	/*String/callback/etc*/
-	void *value;
+	/*Array indice of user data*/
+	int value;
 };
 
 /*Input to the find function*/
 struct pattern_state {
 	struct ir_stmt *entry;
-	struct ir_stmt *(*callback)(struct ir_stmt *cur, void*val);
+	struct ir_stmt *(*callback) (struct ir_stmt * cur, int ns,
+				     int val);
 
 	struct pattern *plist;
 	struct stmt_pattern *splist;
@@ -62,7 +63,8 @@ struct pattern_state {
 
 struct ir_stmt *find_stmt_match(struct pattern_state *state);
 int match_pattern(struct stmt_pattern *spat, int max, struct ir_stmt *st);
-int match_operand(struct ir_stmt *st, struct ir_operand *a, enum oper_pattern pat);
+int match_operand(struct ir_stmt *st, struct ir_operand *a,
+		  enum oper_pattern pat);
 int compare_operands(struct ir_operand *a, struct ir_operand *b);
 
 #endif

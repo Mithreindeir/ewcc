@@ -62,10 +62,10 @@ void set_type(struct symbol_table *scope, char *ident, struct type *type)
 
 	s->offset = 0;
 	int len = strlen(ident);
-	s->identifier = malloc(len+1);
+	s->identifier = malloc(len + 1);
 	memcpy(s->identifier, ident, len);
 	s->identifier[len] = 0;
-     	s->type = type;
+	s->type = type;
 	s->size = resolve_size(type);
 	scope->syms[scope->num_syms - 1] = s;
 }
@@ -74,11 +74,12 @@ void set_type(struct symbol_table *scope, char *ident, struct type *type)
 unsigned alloc_type(struct symbol_table *scope, char *ident)
 {
 	struct symbol *sym = get_symbol(scope, ident);
-	if (!sym) return 0;
-	/*If parent's frame pointer is greater than the current frame pointer, update it*/
+	if (!sym)
+		return 0;
+	/*If parent's frame pointer is greater than the current frame pointer, update it */
 	if (scope->parent && scope->parent->fp > scope->fp)
 		scope->fp = scope->parent->fp;
-	/*For now, default to integer*/
+	/*For now, default to integer */
 	scope->fp += sym->size;
 	sym->offset = scope->fp;
 	return sym->offset;
@@ -87,6 +88,7 @@ unsigned alloc_type(struct symbol_table *scope, char *ident)
 unsigned long get_offset(struct symbol_table *scope, char *ident)
 {
 	struct symbol *sym = get_symbol(scope, ident);
-	if (!sym) return 0;
+	if (!sym)
+		return 0;
 	return sym->offset;
 }

@@ -43,10 +43,15 @@ void node_free(struct node *n)
 		node_free(COND(n)->body);
 		node_free(COND(n)->otherwise);
 		break;
-	case node_decl:
-		free(DECL(n)->ident);
-		node_free(DECL(n)->initializer);
-		type_free(DECL(n)->type);
+	case node_decl_list:
+		for (int i = 0; i < DECL_L(n)->num_decls; i++) {
+			struct declaration *d = DECL_L(n)->decls[i];
+			free(d->ident);
+			node_free(d->initializer);
+			type_free(d->type);
+			free(d);
+		}
+		free(DECL_L(n)->decls);
 		break;
 	case node_loop:
 		node_free(LOOP(n)->init);
@@ -67,7 +72,7 @@ void node_free(struct node *n)
 		break;
 	case node_cast:
 		node_free(n->child);
-		n->child = NULL;/*Directly stores child*/
+		n->child = NULL;	/*Directly stores child */
 		break;
 	case node_return:
 		node_free(RET(n));
@@ -91,16 +96,20 @@ void node_free(struct node *n)
 struct node *unit_init()
 {
 	struct unit *u = malloc(sizeof(struct unit));
-	u->edecls= NULL, u->num_decls = 0;
+	u->edecls = NULL, u->num_decls = 0;
 	return node_init(node_unit, u);
 }
 
 void unit_add(struct unit *u, struct stmt *edecl)
 {
 	u->num_decls++;
-	if (!u->edecls) u->edecls = malloc(sizeof(struct stmt*));
-	else u->edecls = realloc(u->edecls, sizeof(struct stmt*)*u->num_decls);
-	u->edecls[u->num_decls-1] = edecl;
+	if (!u->edecls)
+		u->edecls = malloc(sizeof(struct stmt *));
+	else
+		u->edecls =
+		    realloc(u->edecls,
+			    sizeof(struct stmt *) * u->num_decls);
+	u->edecls[u->num_decls - 1] = edecl;
 }
 
 struct stmt *loop_init(struct expr *init, struct expr *cond,
@@ -143,9 +152,12 @@ struct expr *call_init(struct expr *func, struct expr **args, int argc)
 void call_addarg(struct call *c, struct expr *e)
 {
 	c->argc++;
-	if (!c->argv) c->argv = malloc(sizeof(struct expr *));
-	else c->argv = realloc(c->argv, sizeof(struct expr*)*c->argc);
-	c->argv[c->argc-1] = e;
+	if (!c->argv)
+		c->argv = malloc(sizeof(struct expr *));
+	else
+		c->argv =
+		    realloc(c->argv, sizeof(struct expr *) * c->argc);
+	c->argv[c->argc - 1] = e;
 }
 
 struct stmt *block_init()
@@ -171,7 +183,7 @@ void block_addstmt(struct block *b, struct stmt *s)
 	b->stmt_list[b->num_stmt - 1] = s;
 }
 
-struct expr *binop_init(enum operator   op, struct expr *lhs,
+struct expr *binop_init(enum operator    op, struct expr *lhs,
 			struct expr *rhs)
 {
 	struct binop *b = malloc(sizeof(struct binop));
@@ -180,7 +192,7 @@ struct expr *binop_init(enum operator   op, struct expr *lhs,
 	return node_init(node_binop, b);
 }
 
-struct expr *unop_init(enum operator   op, struct expr *term)
+struct expr *unop_init(enum operator    op, struct expr *term)
 {
 	struct unop *u = malloc(sizeof(struct unop));
 	u->term = term;

@@ -44,12 +44,14 @@ struct expr *parse_postfix(struct parser *p)
 		} else if (t->type == t_lparen) {
 			struct expr *call = call_init(e, NULL, 0);
 			struct expr *arg;
-			while ((arg=parse_asn_expr(p))) {
+			while ((arg = parse_asn_expr(p))) {
 				call_addarg(CALL(call), arg);
-				if (!match(p, t_comma)) break;
+				if (!match(p, t_comma))
+					break;
 			}
 			if (!match(p, t_rparen))
-				syntax_error(p, "Missing right parentheses in function call");
+				syntax_error(p,
+					     "Missing right parentheses in function call");
 			e = call;
 		} else {
 			e = unop_init(t->type ==
@@ -317,16 +319,21 @@ struct stmt *parse_cond(struct parser *p)
 struct stmt *parse_jump(struct parser *p)
 {
 	struct token *t;
-	if ((t=match(p, t_break)) && match(p, t_semic)) return node_init(node_break, NULL);
-	else if (t) syntax_error(p, "Missing semicolon after break");
+	if ((t = match(p, t_break)) && match(p, t_semic))
+		return node_init(node_break, NULL);
+	else if (t)
+		syntax_error(p, "Missing semicolon after break");
 
-	if ((t=match(p, t_continue)) && match(p, t_semic)) return node_init(node_continue, NULL);
-	else if (t) syntax_error(p, "Missing semicolon after continue");
+	if ((t = match(p, t_continue)) && match(p, t_semic))
+		return node_init(node_continue, NULL);
+	else if (t)
+		syntax_error(p, "Missing semicolon after continue");
 
 	struct expr *e;
 	if (match(p, t_return)) {
 		e = parse_expr(p);
-		if (!match(p, t_semic)) syntax_error(p, "Missing semicolon after return");
+		if (!match(p, t_semic))
+			syntax_error(p, "Missing semicolon after return");
 		return node_init(node_return, e);
 	}
 	return NULL;
@@ -346,7 +353,6 @@ struct stmt *parse_stmt(struct parser *p)
 		return s;
 	if ((s = parse_jump(p)))
 		return s;
-	//if (s=parse_declaration(p)) return s;
 	if (match(p, t_semic))
 		return node_init(node_empty, NULL);
 
@@ -355,10 +361,11 @@ struct stmt *parse_stmt(struct parser *p)
 
 struct node *parse_unit(struct parser *p)
 {
-	struct node *unit=NULL;
+	struct node *unit = NULL;
 	struct stmt *s;
-	while ((s=parse_function(p))) {
-		if (!unit) unit = unit_init();
+	while ((s = parse_function(p)) || (s = parse_declaration(p))) {
+		if (!unit)
+			unit = unit_init();
 		unit_add(UNIT(unit), s);
 	}
 	return unit;

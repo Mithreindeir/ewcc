@@ -18,7 +18,8 @@
 #define COND(n) ((struct cond*)n->child)
 #define BINOP(n) ((struct binop*)n->child)
 #define UNOP(n) ((struct unop*)n->child)
-#define DECL(n) ((struct declaration*)n->child)
+#define DECL_L(n) ((struct declaration_list*)n->child)
+
 #define FUNC(n) ((struct func*)n->child)
 #define CALL(n) ((struct call*)n->child)
 #define IDENT(n) (((union value*)n->child)->ident)
@@ -38,9 +39,9 @@
 enum node_type {
 	/*Empty for grammar */
 	node_empty,
-	/*Cast*/
+	/*Cast */
 	node_cast,
-	/*Translation unit*/
+	/*Translation unit */
 	node_unit,
 	/*Expressions */
 	node_ident,
@@ -53,8 +54,8 @@ enum node_type {
 	node_block,
 	node_cond,
 	node_loop,
-	node_decl,
-	/*Jumps*/
+	node_decl_list,
+	/*Jumps */
 	node_break,
 	node_continue,
 	node_return
@@ -133,26 +134,28 @@ struct cond {
 /*Binary operation*/
 struct binop {
 	struct expr *lhs, *rhs;
-	enum operator   op;
+	enum operator    op;
 };
 
 /*Unary operation*/
 struct unop {
 	struct expr *term;
-	enum operator   op;
+	enum operator    op;
 };
 
-/*Declaration*/
-struct declaration {
-	char *ident;
-	struct type *type;
-	/*for now just an expression */
-	struct expr *initializer;
+/*Declaration list (also holds single declarations)*/
+struct declaration_list {
+	struct declaration {
+		char *ident;
+		struct type *type;
+		struct expr *initializer;
+	} **decls;
+	int num_decls;
 };
 
 /*Primary expression or unit value in expression*/
 union value {
-	/*It might make more sense for this to be a symbol*/
+	/*It might make more sense for this to be a symbol */
 	char *ident;
 	long cnum;
 	double cfloat;
@@ -162,9 +165,9 @@ union value {
 struct node *node_init(int type, void *term);
 void node_free(struct node *n);
 
-struct expr *binop_init(enum operator   op, struct expr *lhs,
+struct expr *binop_init(enum operator    op, struct expr *lhs,
 			struct expr *rhs);
-struct expr *unop_init(enum operator   op, struct expr *term);
+struct expr *unop_init(enum operator    op, struct expr *term);
 struct stmt *block_init();
 void block_addstmt(struct block *b, struct stmt *s);
 struct stmt *loop_init(struct expr *init, struct expr *cond,

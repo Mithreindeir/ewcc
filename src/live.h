@@ -25,25 +25,25 @@
 
 /*Basic Block*/
 struct bb {
-	struct ir_stmt * blk, * lst;
+	struct ir_stmt *blk, *lst;
 	int len;
-	/*Variables that are attempted to get stored in registers*/
+	/*Variables that are attempted to get stored in registers */
 	struct ir_operand **rmap;
 	int num_op;
 
-	/*Successors and Predeccessors of the basic block*/
+	/*Successors and Predeccessors of the basic block */
 	struct bb **succ, **pred;
 	int nsucc, npred;
 
-	/*The stmt # where a temp is last used*/
+	/*The stmt # where a temp is last used */
 	int *temp, ntemp;
-	/*Use/def list*/
+	/*Use/def list */
 	int *use, nuse, *def, ndef;
-	/*For now local register allocation, so just keep interference graph on basic blocks*/
+	/*For now local register allocation, so just keep interference graph on basic blocks */
 	struct vertex **graph;
 	int nvert;
 
-	/*IR Register input/outputs*/
+	/*IR Register input/outputs */
 	int *in, nin, *out, nout;
 	int visited;
 };

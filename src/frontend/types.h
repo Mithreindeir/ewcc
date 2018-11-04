@@ -10,18 +10,11 @@
 #include "../x86types.def"
 #endif
 
-
-
 #define NUM_OPERATORS 31
 #define NUM_DTYPES 9
 
-#define OPERATOR(o) o_##o
-
-#define OPERATOR_TABLE 		\
-	OPER
-
-/*All operator types (partial list atm)*/
-enum operator  {
+/*All operator types (partial list at the moment)*/
+enum operator {
 	/*arithmetic */
 	o_add,
 	o_sub,
@@ -43,7 +36,8 @@ enum operator  {
 	o_bor,
 	o_bxor,
 	o_bnot,
-	 /**/ o_neg,
+	/**/
+	o_neg,
 	o_ref,
 	o_deref,
 	o_postinc,
@@ -55,7 +49,6 @@ enum operator  {
 	o_add_asn,
 	o_sub_asn,
 	o_mul_asn,
-
 	o_invalid
 };
 
@@ -75,7 +68,6 @@ enum type_specifier {
 	TYPE_TABLE
 };
 #undef TYPE
-
 
 /*Type constructors*/
 enum info_type {
@@ -122,9 +114,8 @@ struct node_info {
 extern const char *operator_str[NUM_OPERATORS];
 extern const char *data_type_str[NUM_DTYPES];
 
-/*Returns operator given token string, ignoring ambiguous operators (like & binary and and & ref) */
 struct type *type_init(enum info_type node_type);
-/*Merges two linked lists of type info, with t1 at the front, and returns it*/
+/*Merges two type constructor lists*/
 struct type *types_merge(struct type *t1, struct type *t2);
 void type_free(struct type *head);
 struct type *type_copy(struct type *top);
@@ -132,7 +123,8 @@ int resolve_size(struct type *type);
 void print_type(struct type *head);
 int cmp_types(struct type *a, struct type *b);
 struct type *dereference_type(struct type *a);
-enum operator  dec_oper(char *str);
-void print_oper(enum operator  o);
+/*Returns operator enum given the token string, works for unambigious operators*/
+enum operator   dec_oper(char *str);
+void print_oper(enum operator   o);
 
 #endif

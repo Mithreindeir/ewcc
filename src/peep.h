@@ -8,8 +8,7 @@
 #include "debug.h"
 #include "tac.h"
 
-/*Three Address Code Peephole optimizer.
- * */
+/*Three Address Code Peephole optimizer*/
 
 #define RED_GOTO 	0
 #define RED_CGOTO 	1
@@ -46,11 +45,11 @@
 
 extern struct stmt_pattern pattern_stmts[NUM_PSTMT];
 extern struct pattern peephole_patterns[NUM_PATTERNS];
-extern struct ir_stmt *(*reducing[5])(struct ir_stmt *a);
+extern struct ir_stmt *(*reducing[5]) (struct ir_stmt * a);
 
 
 void optimize(struct ir_stmt *start);
-struct ir_stmt *find_handle(struct ir_stmt *cur, void *val);
+struct ir_stmt *find_handle(struct ir_stmt *cur, int ns, int val);
 
 struct ir_stmt *reduce_goto(struct ir_stmt *a);
 struct ir_stmt *reduce_cgoto(struct ir_stmt *a);

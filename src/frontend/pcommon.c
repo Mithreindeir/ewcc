@@ -14,6 +14,8 @@ struct parser *parser_init(struct token **tlist, int num_tokens)
 
 void parser_free(struct parser *p)
 {
+	if (!p)
+		return;
 	for (int i = 0; i < p->len; i++) {
 		free(p->toks[i]->tok);
 		free(p->toks[i]);
@@ -23,12 +25,10 @@ void parser_free(struct parser *p)
 	free(p);
 }
 
-/*Parser helper functions*/
 struct token *match(struct parser *p, enum token_type t)
 {
-	if (peek(p, t)) {
+	if (peek(p, t))
 		return consume(p);
-	}
 	return NULL;
 }
 
@@ -41,10 +41,8 @@ int peek(struct parser *p, enum token_type t)
 
 struct token *consume(struct parser *p)
 {
-	++p->cur;
-	if (p->cur > p->len) {
+	if (++p->cur > p->len)
 		return NULL;
-	}
 	return p->toks[p->cur - 1];
 }
 
@@ -62,12 +60,13 @@ void push_scope(struct parser *p)
 {
 	struct symbol_table *top = get_scope(p);
 	p->num_stk++;
-	if (!p->scope_stk)
+	if (!p->scope_stk) {
 		p->scope_stk = malloc(sizeof(struct symbol_table *));
-	else
+	} else {
 		p->scope_stk =
 		    realloc(p->scope_stk,
 			    sizeof(struct symbol_table *) * p->num_stk);
+	}
 	p->scope_stk[p->num_stk - 1] = symbol_table_init(top);
 }
 
@@ -92,4 +91,3 @@ struct symbol_table *get_scope(struct parser *p)
 {
 	return p->num_stk ? p->scope_stk[p->num_stk - 1] : NULL;
 }
-

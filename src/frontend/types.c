@@ -54,16 +54,18 @@ void type_free(struct type *head)
 
 struct type *type_copy(struct type *top)
 {
-	if (!top) return NULL;
+	if (!top)
+		return NULL;
 	struct type *cpy = type_init(top->type);
 	memcpy(&cpy->info, &top->info, sizeof(top->info));
 	if (top->type == type_fcn) {
 		struct func_type fcn = top->info.fcn;
-		char **paramv  = malloc(sizeof(char*)*fcn.paramc);
-		struct type **paramt = malloc(sizeof(struct type*)*fcn.paramc);
+		char **paramv = malloc(sizeof(char *) * fcn.paramc);
+		struct type **paramt =
+		    malloc(sizeof(struct type *) * fcn.paramc);
 		for (int i = 0; i < fcn.paramc; i++) {
 			int slen = strlen(fcn.paramv[i]);
-			char *np = malloc(slen+1);
+			char *np = malloc(slen + 1);
 			memcpy(np, fcn.paramv[i], slen);
 			np[slen] = 0;
 			paramv[i] = np;
@@ -72,7 +74,8 @@ struct type *type_copy(struct type *top)
 		cpy->info.fcn.paramv = paramv;
 		cpy->info.fcn.paramt = paramt;
 	}
-	if (top->next) cpy->next = type_copy(top->next);
+	if (top->next)
+		cpy->next = type_copy(top->next);
 	return cpy;
 }
 
@@ -81,18 +84,23 @@ int resolve_size(struct type *type)
 	struct type *head = type;
 	int m = 1;
 	while (head) {
-		if (head->type == type_ptr) return PTR_SIZE*m;
+		if (head->type == type_ptr)
+			return PTR_SIZE * m;
 		if (head->type == type_datatype) {
 			switch (head->info.data_type) {
-				case type_int: return INT_TYPE_SIZE*m;
-				case type_char: return CHAR_TYPE_SIZE*m;
-				default: break;
+			case type_int:
+				return INT_TYPE_SIZE * m;
+			case type_char:
+				return CHAR_TYPE_SIZE * m;
+			default:
+				break;
 			}
 		}
-		if (head->type == type_array) m = m * head->info.elem;
+		if (head->type == type_array)
+			m = m * head->info.elem;
 		head = head->next;
 	}
-	/*Default to integer*/
+	/*Default to integer */
 	printf("Error resolving size of type: ");
 	print_type(type);
 	printf("\n");
@@ -149,7 +157,7 @@ int cmp_types(struct type *a, struct type *b)
 	return 1;
 }
 
-enum operator  dec_oper(char *str)
+enum operator   dec_oper(char *str)
 {
 	for (int i = 0; i < NUM_OPERATORS; i++) {
 		if (!strcmp(str, operator_str[i])) {
@@ -159,7 +167,7 @@ enum operator  dec_oper(char *str)
 	return o_invalid;
 }
 
-void print_oper(enum operator  o)
+void print_oper(enum operator   o)
 {
 	printf("%s", operator_str[o]);
 }

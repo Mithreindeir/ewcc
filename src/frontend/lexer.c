@@ -1,7 +1,7 @@
 #include "lexer.h"
 
 const struct token_pair token_pairs[34] = {
-	{ t_void, "void", 4},
+	{ t_void, "void", 4 },
 	{ t_int, "int", 3 },
 	{ t_char, "char", 4 },
 	{ t_inc, "++", 2 },
@@ -30,7 +30,7 @@ const struct token_pair token_pairs[34] = {
 	{ t_while, "while", 5 },
 	{ t_break, "break", 5 },
 	{ t_continue, "continue", 8 },
-	{ t_return, "return", 6},
+	{ t_return, "return", 6 },
 	{ t_for, "for", 3 },
 	{ t_comma, ",", 1 },
 	{ t_semic, ";", 1 }
