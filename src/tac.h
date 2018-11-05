@@ -16,7 +16,7 @@
 #define REQ_LABEL(ctx) (ctx->label_cnt++)
 #define RELATIONAL(t) (t >= stmt_lt)
 
-#define NUM_STMT 	26
+#define NUM_STMT 	27
 #define STMT_STR(x) 	stmt_##x
 
 #define unlink(i) {\
@@ -34,6 +34,7 @@
 #define STMT_TABLE 				\
 	/*   enum 	fmt*/			\
 	STMT(invalid, 	, 	"")		\
+	STMT(func, 	, 	"$1") 		\
 	STMT(label, 	, 	"L$l") 		\
 	/**/ 					\
 	STMT(call, 	, 	"$0 = $1()") 	\
@@ -58,9 +59,9 @@
 	STMT(bor, 	o_bor, 	"|") 		\
 	STMT(bnot, 	o_bnot, "~") 		\
 	/*Memory*/ 				\
-	STMT(load, 	o_deref,"LD $0, @1[$1]")	\
+	STMT(load, 	o_deref,"ld $0, @1[$1]")	\
 	/*Ptr dereference and not register result, so use arg1/arg2*/\
-	STMT(store, 	o_asn,  "ST @1[$1], $2") 	\
+	STMT(store, 	o_asn,  "st @1[$1], $2") 	\
 	STMT(addr, 	o_ref,  "$0 = &[$1]") 	\
 	/*Relational*/ 				\
 	STMT(lt, 	o_lt, 	"$1 < $2") 	\
@@ -120,7 +121,7 @@ struct generator {
 
 struct ir_stmt *ir_stmt_init();
 
-struct ir_stmt *generate(struct node *n);
+struct ir_stmt *generate(struct node *n, struct symbol_table *global);
 /*Generates TAC from AST node, and returns the value if it is an expression*/
 struct ir_operand *generate_from_node(struct node *n,
 				      struct generator *context,
@@ -132,6 +133,7 @@ void cond_emit(struct generator *context, struct cond *c);
 void loop_emit(struct generator *context, struct loop *l);
 void decl_emit(struct generator *context, struct declaration *d);
 void block_emit(struct generator *context, struct block *b);
+void func_emit(struct generator *context, struct func *fn);
 struct ir_operand *call_emit(struct generator *context, struct call *c,
 			     int result);
 struct ir_operand *ident_emit(struct generator *context, char *ident,

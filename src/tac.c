@@ -13,9 +13,9 @@ enum stmt_type map_stmt(enum operator  op)
 	return stmt_invalid;
 }
 
-struct ir_stmt *generate(struct node *top)
+struct ir_stmt *generate(struct node *top, struct symbol_table *global)
 {
-	struct generator context = {.reg_cnt = 0,.scope = NULL,.parent =
+	struct generator context = {.reg_cnt = 0,.scope = global,.parent =
 		    top };
 	(void) generate_from_node(top, &context, IGNORE);
 	return context.head;
@@ -69,15 +69,7 @@ struct ir_operand *generate_from_node(struct node *n,
 		}
 		break;
 	case node_func:
-		/*Instead of having multiple ret stmts, backpatch them as jumps to the
-		 * end of the function*/
-		generate_from_node(FUNC(n)->body, context, IGNORE);
-		int end = REQ_LABEL(context);
-		emit_label(context, end);
-		backpatch(FLIST_REF(FUNC(n)->body), end);
-		struct ir_stmt *s = ir_stmt_init();
-		s->type = stmt_ret;
-		emit(context, s);
+		func_emit(context, FUNC(n));
 		break;
 	case node_break:
 		/*Breaks are coded as falselists jumps in a block, will only be backpatched
@@ -93,7 +85,7 @@ struct ir_operand *generate_from_node(struct node *n,
 		break;
 	case node_return:
 		/*Returns are jumps to the ret at the end of the function. */
-		s = ir_stmt_init();
+		;struct ir_stmt *s = ir_stmt_init();
 		s->type = stmt_retval;
 		s->arg1 = generate_from_node(RET(n), context, VALUE);
 		emit(context, s);
@@ -116,6 +108,36 @@ struct ir_operand *generate_from_node(struct node *n,
 	if (r && n->inf && TYPE(n))
 		r->size = resolve_size(TYPE(n));
 	return r;
+}
+
+void func_emit(struct generator *context, struct func *fn)
+{
+	struct ir_stmt *f = ir_stmt_init();
+	f->type = stmt_func;
+	struct symbol *sm = get_symbol(context->scope, fn->ident);
+	f->arg1 = from_sym(sm);
+	emit(context, f);
+	generate_from_node(fn->body, context, IGNORE);
+	int end = REQ_LABEL(context);
+	emit_label(context, end);
+	backpatch(FLIST_REF(fn->body), end);
+	struct ir_stmt *s = ir_stmt_init();
+	s->type = stmt_ret;
+	emit(context, s);
+	/*Coalesce stack allocations to the entry point of function*/
+	struct ir_stmt *cur = f, *la = f, *next;
+	while (cur && cur != s) {
+		next = cur->next;
+		if (cur->type == stmt_alloc && cur != la) {
+			unlink(cur);
+			cur->prev = la;
+			cur->next = la->next;
+			la->next->prev = cur;
+			la->next = cur;
+			la = cur;
+		}
+		cur = next;
+	}
 }
 
 /*Change the current scope, generate TAC from each statement, and merge all the true/false lists*/

@@ -34,7 +34,7 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 	struct ir_operand *cop[3] =
 	    { stmt->result, stmt->arg1, stmt->arg2 };
 	int len = strlen(fmt);
-	if (stmt->type != stmt_label)
+	if (stmt->type != stmt_label && stmt->type != stmt_func)
 		printf("\t");
 	for (int i = 0; i < len; i++) {
 		if (fmt[i] == '$' && (i + 1) < len) {
@@ -54,6 +54,7 @@ void ir_debug_fmt(const char *fmt, struct ir_stmt *stmt)
 			printf("%c", fmt[i]);
 		}
 	}
+	if (stmt->type == stmt_func) printf(":");
 	return;
 	ir_operand_size_debug(cop[0]);
 	ir_operand_size_debug(cop[1]);
@@ -66,7 +67,7 @@ void ir_operand_debug(struct ir_operand *oper)
 		return;
 	switch (oper->type) {
 	case oper_reg:
-		printf("R%d", oper->val.virt_reg);
+		printf("r%d", oper->val.virt_reg);
 		break;
 	case oper_sym:
 		if (!oper->val.sym)
@@ -241,7 +242,9 @@ void node_debug(struct node *n)
 			struct declaration *d = DECL_L(n)->decls[i];
 			printf("decl:");
 			depth_str[di++] = ' ';
-			depth_str[di++] = '|';
+			if ((i+1)<DECL_L(n)->num_decls)
+				depth_str[di++] = '|';
+			else depth_str[di++] = ' ';
 			print_type(d->type);
 			printf(" %s\n", d->ident);
 			if (d->initializer) {

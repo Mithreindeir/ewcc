@@ -1,5 +1,5 @@
 CC = gcc
-EXE = rcc
+EXE = ewcc
 SOURCES = $(wildcard src/*.c src/frontend/*.c)
 OBJS = $(SOURCES:.c=.o)
 UNAME_S := $(shell uname -s)

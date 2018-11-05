@@ -38,7 +38,7 @@ int main()
 		printf("\n");
 		printf("------------------------------------\n");
 
-		struct ir_stmt *stmt = generate(s);
+		struct ir_stmt *stmt = generate(s, get_scope(p));
 
 		optimize(stmt);
 		printf("TAC Intermediate Representation\n");
@@ -59,8 +59,6 @@ int main()
 			bb_free(bbs[i]);
 		}
 		free(bbs);
-		printf("------------------------------------\n");
-		printf("Initial Instruction Selection:\n");
 
 		struct ir_stmt *next = NULL;
 		while (stmt) {

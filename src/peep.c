@@ -1,8 +1,8 @@
 #include "peep.h"
 
-struct ir_stmt *(*reducing[5]) (struct ir_stmt * a) = {
+struct ir_stmt *(*reducing[NUM_PATTERNS]) (struct ir_stmt * a) = {
 	reduce_goto, reduce_cgoto, reduce_load, reduce_store_load,
-	    reduce_label
+	    reduce_label, reduce_unused_label
 };
 
 struct stmt_pattern pattern_stmts[NUM_PSTMT] = {
@@ -171,4 +171,36 @@ struct ir_stmt *reduce_label(struct ir_stmt *a)
 		cur = cur->prev;
 	}
 	return a->prev;
+}
+
+/*Removes unused labels. This code isn't worth the time it takes to run it,
+ * because unused labels are harmless, but removing them makes the TAC look cleaner*/
+struct ir_stmt *reduce_unused_label(struct ir_stmt *a)
+{
+	int used = 0;
+	struct ir_stmt *cur = a->prev;
+	/*Scan behind*/
+	while (cur && cur->prev && cur->prev->type != stmt_func) {
+		if (cur->label == a->label) {
+			used = 1;
+			break;
+		}
+		cur = cur->prev;
+	}
+	cur = a->next;
+	/*Scan ahead*/
+	while (cur && cur->next && cur->next->type != stmt_ret) {
+		if (cur->label == a->label) {
+			used = 1;
+			break;
+		}
+		cur = cur->next;
+	}
+	if (!used) {
+		cur = a->prev ? a->prev : a->next;
+		unlink(a);
+		ir_stmt_free(a);
+		return cur;
+	}
+	return a;
 }

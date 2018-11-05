@@ -23,6 +23,9 @@
 #define DST 	2
 #define LBL 	4
 
+/*Pattern matching*/
+#define STMT_PAT(flag, type, r, a1, a2) {flag, type, r, a1, a2}
+
 /*To match a pattern*/
 enum oper_pattern {
 	opat_ignore,

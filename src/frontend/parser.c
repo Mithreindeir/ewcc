@@ -271,6 +271,8 @@ struct stmt *parse_loop(struct parser *p)
 			syntax_error(p, "Missing left parentheses");
 		init = parse_declaration(p);
 		if (!init)
+			init = parse_expr_stmt(p);
+		if (!init)
 			syntax_error(p,
 				     "No valid initializer statement in for loop");
 		cond = parse_expr(p);

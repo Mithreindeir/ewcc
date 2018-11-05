@@ -34,7 +34,6 @@ struct bb {
 	/*Successors and Predeccessors of the basic block */
 	struct bb **succ, **pred;
 	int nsucc, npred;
-
 	/*The stmt # where a temp is last used */
 	int *temp, ntemp;
 	/*Use/def list */

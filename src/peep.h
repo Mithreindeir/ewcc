@@ -15,9 +15,7 @@
 #define RED_LOAD 	2
 #define RED_STLOAD 	3
 #define RED_LABEL 	4
-
-/*Pattern matching*/
-#define STMT_PAT(flag, type, r, a1, a2) {flag, type, r, a1, a2}
+#define UNUSED_LABEL 	5
 
 /*The patterns define what should trigger the optimization functions
  * The numbers mean a matching pair, and empty strings ignore the arguments
@@ -38,14 +36,16 @@
 		STMT_PAT(0, 		stmt_label, IGN, IGN, IGN))\
 	PATTERN(2, RED_LOAD,\
 		STMT_PAT(SRC, 		stmt_load, IGN, AG1, IGN),\
-		STMT_PAT(DST, 		stmt_load, IGN, IGN, IGN))
+		STMT_PAT(DST, 		stmt_load, IGN, IGN, IGN))\
+	PATTERN(1, UNUSED_LABEL,\
+		STMT_PAT(0, 		stmt_label, IGN, IGN, IGN))\
 
-#define NUM_PSTMT 11
-#define NUM_PATTERNS 5
+#define NUM_PSTMT 12
+#define NUM_PATTERNS 6
 
 extern struct stmt_pattern pattern_stmts[NUM_PSTMT];
 extern struct pattern peephole_patterns[NUM_PATTERNS];
-extern struct ir_stmt *(*reducing[5]) (struct ir_stmt * a);
+extern struct ir_stmt *(*reducing[NUM_PATTERNS]) (struct ir_stmt * a);
 
 
 void optimize(struct ir_stmt *start);
@@ -56,5 +56,6 @@ struct ir_stmt *reduce_cgoto(struct ir_stmt *a);
 struct ir_stmt *reduce_load(struct ir_stmt *a);
 struct ir_stmt *reduce_store_load(struct ir_stmt *a);
 struct ir_stmt *reduce_label(struct ir_stmt *a);
+struct ir_stmt *reduce_unused_label(struct ir_stmt *a);
 
 #endif
