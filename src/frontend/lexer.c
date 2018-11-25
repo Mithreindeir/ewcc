@@ -95,7 +95,7 @@ enum token_type lex_r(char **saveptr, int *tlen, char **ls, int *ln)
 		} else if (isalpha(*str) || *str == '_') {
 			t = t_ident;
 			while (str[len]
-			       && (isalpha(str[len]) || str[len] == '_'))
+			       && (isalnum(str[len]) || str[len] == '_'))
 				len++;
 		}
 	}

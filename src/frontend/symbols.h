@@ -10,7 +10,8 @@
 /*Each architecture must provide a mechanism for allocating local variables,
  * eg: x86alloc("a") -> ebp-0x8, globals are left for linking */
 struct symbol {
-	unsigned long offset, size;
+	long offset, size, allocd;
+	int iter, spilled;//for ssa
 	char *identifier;
 	struct type *type;
 };
@@ -30,8 +31,12 @@ void symbol_table_debug(struct symbol_table *scope);
 struct type *get_type(struct symbol_table *scope, const char *ident);
 void set_type(struct symbol_table *scope, char *ident, struct type *type);
 int resolve_size(struct type *type);
+struct symbol *get_symbol_allocd(struct symbol_table *scope, const char *ident, int allocd);
 struct symbol *get_symbol(struct symbol_table *scope, const char *ident);
-unsigned alloc_type(struct symbol_table *scope, char *ident);
 unsigned long get_offset(struct symbol_table *scope, char *ident);
+/*Storage class allocators*/
+//unsigned local_alloc(struct symbol_table *scope, const char *ident);
+//unsigned param_alloc(struct symbol_table *scope, const char *ident);
+unsigned alloc_type(struct symbol_table *scope, char *ident);
 
 #endif

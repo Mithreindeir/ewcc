@@ -1,3 +1,4 @@
+#define REG_SIZE 	4
 #define PTR_SIZE 	4
 #define INT_TYPE_SIZE 	4
 #define CHAR_TYPE_SIZE 	1

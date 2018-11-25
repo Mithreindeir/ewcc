@@ -1,67 +1,25 @@
 #ifndef RALLOC_H
 #define RALLOC_H
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "tac.h"
+#include "cfg.h"
+#include "color.h"
 
-/*Register Allocation using Kempe's k-node graph coloring algorithm:
- * -Pick vertex on graph with < k degrees
- *  	-If there is none, still do algorithm but last step changes
- * -Remove vertex and add it to stack
- * -Recursive call to Kempes algorithm with k-1
- * -Pop vertex and set it color not used in adjacent node
- *  	-If in first step there was no node with < k degrees:
- *  		-If siblings have duplicate colors, then color is available
- *  		-Leave vertex uncolored, or "spill"
- *
- * Psuedocode:
- * colors = [red, blue, green, ...]
- * stack = []
- * Kempe(graph, k) {
- * 	for vertex in graph {
- * 		if degree(vertex) < k {
- * 			idx = graph.remove(vertex)
- * 			stack.push(vertex)
- * 			Kempe(graph, k-1)
- * 		}
- * 	}
- * 	vertex = stack.pop()
- * 	graph.insert(vertex, idx)
- * 	vertex.color = colors[k]
- * }
- * Vertex's are actually variables, with the siblings being variables whose
- * live ranges intersect with the variables live range*/
+/*Register Allocation:
+ * Eventual goal is graph coloring global register allocation,
+ * but for now just local register allocation in basic blocks
+ * */
 
-/*Right now uses O(n^2) memory usage, will rewrite later*/
-struct vertex {
-	/*Original IR register to be replaced */
-	int ocolor;
-	/*New register */
-	int color;
-	/*Removed flag to prevent graph changes */
-	int removed;
-	/*Edges are just pointers to vertices */
-	struct vertex **siblings;
-	int num_siblings;
-};
+int find_node(struct vertex **graph, int nvert, int tmp);
+void make_edge(struct vertex *v1, struct vertex *v2);
+struct vertex **add_node(struct vertex **graph, int *nvert, int tmp);
+struct vertex **interference(struct bb *blk, int *num_nodes);
 
-struct vstk {
-	struct vertex **vertices;
-	int num_vertices;
-};
-
-struct vertex *vertex_init();
-void vertex_free(struct vertex *v);
-void add_edge(struct vertex *v, struct vertex *v2);
-void vertex_add_edge(struct vertex *v, struct vertex *v2);
-
-void push(struct vstk *stk, struct vertex *v);
-struct vertex *pop(struct vstk *stk);
-int degree(struct vertex *v);
-
-void fill_stack(struct vertex **graph, int num, struct vstk *stk, int k);
-/*Given interference graph and number of colors, will color the graph*/
-void color_graph(struct vertex **graph, int num, int k);
-
+struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map);
+struct vertex **dedup_interference(struct vertex **graph, int *num_vert);
+void proc_alloc(struct bb **bbs, int nbbs);
+int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter);
+void repload(struct ir_stmt *cur, int temp, int ntemp);
+void repstore(struct ir_stmt *cur, int temp, int ntemp);
 
 #endif

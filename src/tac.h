@@ -39,7 +39,7 @@
 	/**/ 					\
 	STMT(call, 	, 	"$0 = $1()") 	\
 	STMT(ugoto, 	, 	"goto L$l") 	\
-	STMT(cgoto, 	, 	"if true L$l") 	\
+	STMT(cgoto, 	, 	"gotrue L$l") 	\
 	STMT(alloc, 	, 	"alloc $1")	\
 	/*Move, must be on registers and immediates*/\
 	STMT(move, 	, 	"$0 = $1")\
@@ -87,7 +87,7 @@ enum oper_type {
 
 struct ir_operand {
 	enum oper_type type;
-	int size;
+	int size, iter;
 	union {
 		int virt_reg;
 		struct symbol *sym;
@@ -123,7 +123,7 @@ struct ir_stmt *ir_stmt_init();
 
 struct ir_stmt *generate(struct node *n, struct symbol_table *global);
 /*Generates TAC from AST node, and returns the value if it is an expression*/
-struct ir_operand *generate_from_node(struct node *n,
+struct ir_operand *eval(struct node *n,
 				      struct generator *context,
 				      int result);
 

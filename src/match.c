@@ -41,11 +41,12 @@ int match_pattern(struct stmt_pattern *spat, int max, struct ir_stmt *st)
 	struct ir_stmt *cur = st;
 	int it = 0;
 	while (cur && it < max) {
-		if (it > 1 && !src)
+		//if (it > 1 && !src)
+		if (src && dst)
 			break;
-		if ((spat[it].flags & SRC))
+		if (!src&&(spat[it].flags & SRC))
 			src = cur;
-		if ((spat[it].flags & DST))
+		if (!dst&&(spat[it].flags & DST))
 			dst = cur;
 		it++;
 		cur = cur->next;

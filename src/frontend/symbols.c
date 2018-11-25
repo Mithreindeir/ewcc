@@ -26,10 +26,16 @@ void symbol_table_free(struct symbol_table *scope)
 
 struct symbol *get_symbol(struct symbol_table *scope, const char *ident)
 {
+	return get_symbol_allocd(scope, ident, 0);
+}
+
+struct symbol *get_symbol_allocd(struct symbol_table *scope, const char *ident, int allocd)
+{
 	struct symbol_table *p = scope;
 	struct symbol *sym = NULL;
 	while (p && !sym) {
 		for (int i = 0; i < p->num_syms; i++) {
+			if (allocd && !p->syms[i]->allocd) continue;
 			if (!strcmp(p->syms[i]->identifier, ident)) {
 				sym = p->syms[i];
 				break;
@@ -67,6 +73,8 @@ void set_type(struct symbol_table *scope, char *ident, struct type *type)
 	s->identifier[len] = 0;
 	s->type = type;
 	s->size = resolve_size(type);
+	s->allocd = 0;
+	s->iter = 0;
 	scope->syms[scope->num_syms - 1] = s;
 }
 
@@ -82,6 +90,8 @@ unsigned alloc_type(struct symbol_table *scope, char *ident)
 	/*For now, default to integer */
 	scope->fp += sym->size;
 	sym->offset = scope->fp;
+	sym->allocd = 1;
+	sym->spilled = 0;
 	return sym->offset;
 }
 

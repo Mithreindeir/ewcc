@@ -17,12 +17,12 @@ struct ir_stmt *generate(struct node *top, struct symbol_table *global)
 {
 	struct generator context = {.reg_cnt = 0,.scope = global,.parent =
 		    top };
-	(void) generate_from_node(top, &context, IGNORE);
+	(void) eval(top, &context, IGNORE);
 	return context.head;
 }
 
 /*Converts the AST into Three Address Code*/
-struct ir_operand *generate_from_node(struct node *n,
+struct ir_operand *eval(struct node *n,
 				      struct generator *context,
 				      int result)
 {
@@ -42,7 +42,7 @@ struct ir_operand *generate_from_node(struct node *n,
 		loop_emit(context, LOOP(n));
 		break;
 	case node_cast:
-		r = generate_from_node(n->child, context, result);
+		r = eval(n->child, context, result);
 		break;
 	case node_call:
 		r = call_emit(context, CALL(n), result);
@@ -64,7 +64,7 @@ struct ir_operand *generate_from_node(struct node *n,
 			/*Don't generate code for top declarations right now */
 			if (UNIT(n)->edecls[i]->type == node_decl_list)
 				continue;
-			generate_from_node(UNIT(n)->edecls[i], context,
+			eval(UNIT(n)->edecls[i], context,
 					   IGNORE);
 		}
 		break;
@@ -87,7 +87,7 @@ struct ir_operand *generate_from_node(struct node *n,
 		/*Returns are jumps to the ret at the end of the function. */
 		;struct ir_stmt *s = ir_stmt_init();
 		s->type = stmt_retval;
-		s->arg1 = generate_from_node(RET(n), context, VALUE);
+		s->arg1 = eval(RET(n), context, VALUE);
 		emit(context, s);
 		FLIST(n) =
 		    make_list(emit_jump(context, -1, UNCONDITIONAL));
@@ -115,9 +115,21 @@ void func_emit(struct generator *context, struct func *fn)
 	struct ir_stmt *f = ir_stmt_init();
 	f->type = stmt_func;
 	struct symbol *sm = get_symbol(context->scope, fn->ident);
+	sm->allocd = 1;
 	f->arg1 = from_sym(sm);
 	emit(context, f);
-	generate_from_node(fn->body, context, IGNORE);
+	struct func_type fcn = fn->ftype->info.fcn;
+	/*Allocate function parameters*/
+	context->scope = BLOCK(fn->body)->scope;
+	int frame_ptr = 4;
+	for (int i = 0; i < fcn.paramc; i++) {
+		struct symbol *p = get_symbol(context->scope, fcn.paramv[i]);
+		p->allocd = 1;
+		p->offset = -(frame_ptr + p->size);
+	}
+
+	/**/
+	eval(fn->body, context, IGNORE);
 	int end = REQ_LABEL(context);
 	emit_label(context, end);
 	backpatch(FLIST_REF(fn->body), end);
@@ -138,6 +150,7 @@ void func_emit(struct generator *context, struct func *fn)
 		}
 		cur = next;
 	}
+	context->scope = BLOCK(fn->body)->scope->parent;
 }
 
 /*Change the current scope, generate TAC from each statement, and merge all the true/false lists*/
@@ -146,7 +159,7 @@ void block_emit(struct generator *context, struct block *b)
 	struct node *p = context->parent;
 	context->scope = b->scope;
 	for (int i = 0; i < b->num_stmt; i++) {
-		generate_from_node(b->stmt_list[i], context, IGNORE);
+		eval(b->stmt_list[i], context, IGNORE);
 		/*Merge it into the block */
 		TLIST(p) = merge(TLIST(p), TLIST(b->stmt_list[i]));
 		FLIST(p) = merge(FLIST(p), FLIST(b->stmt_list[i]));
@@ -159,19 +172,19 @@ void cond_emit(struct generator *context, struct cond *c)
 	/*Emit comparison, if false jump to block end, at end of block jump after else block */
 	int start = REQ_LABEL(context), otherwise =
 	    REQ_LABEL(context), end = REQ_LABEL(context);
-	generate_from_node(c->condition, context, IGNORE);
+	eval(c->condition, context, IGNORE);
 	/*True is patched to the start of the block, false is patched to where the else block would be */
 	backpatch(TLIST_REF(c->condition), start);
 	backpatch(FLIST_REF(c->condition), otherwise);
 
 	emit_label(context, start);
-	generate_from_node(c->body, context, IGNORE);
+	eval(c->body, context, IGNORE);
 	/*If there is a else block, then emit an unconditional jump to the end of that */
 	if (c->otherwise)
 		emit_jump(context, end, UNCONDITIONAL);
 	emit_label(context, otherwise);
 	/*If else statement exists, then traverse that too */
-	generate_from_node(c->otherwise, context, IGNORE);
+	eval(c->otherwise, context, IGNORE);
 	emit_label(context, end);
 	/*The body's patched to the parents */
 	if (c->body) {
@@ -193,14 +206,14 @@ void loop_emit(struct generator *context, struct loop *l)
 {
 	int cmp = REQ_LABEL(context), start = REQ_LABEL(context), end =
 	    REQ_LABEL(context);
-	generate_from_node(l->init, context, IGNORE);
+	eval(l->init, context, IGNORE);
 	/*Unconditional jump to compare block */
 	emit_jump(context, cmp, UNCONDITIONAL);
 	emit_label(context, start);
-	generate_from_node(l->body, context, IGNORE);
-	generate_from_node(l->iter, context, IGNORE);
+	eval(l->body, context, IGNORE);
+	eval(l->iter, context, IGNORE);
 	emit_label(context, cmp);
-	generate_from_node(l->condition, context, IGNORE);
+	eval(l->condition, context, IGNORE);
 	emit_label(context, end);
 	/*True is backpatched to the loop start, false is patched to after the loop ends */
 	backpatch(TLIST_REF(l->condition), start);
@@ -224,13 +237,14 @@ void decl_emit(struct generator *context, struct declaration *decl)
 	stmt->type = stmt_alloc;
 	alloc_type(context->scope, decl->ident);
 	struct symbol *s = get_symbol(context->scope, decl->ident);
-	stmt->arg1 = from_sym(s);
+	//stmt->arg1 = from_sym(s);
+	stmt->arg1 = from_cnum(s->size);
 	if (decl->initializer) {
 		emit(context, stmt);
 		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
 		stmt->arg2 =
-		    generate_from_node(decl->initializer, context, VALUE);
+		    eval(decl->initializer, context, VALUE);
 		stmt->arg1 = from_sym(s);
 	}
 	emit(context, stmt);
@@ -253,11 +267,11 @@ struct ir_operand *call_emit(struct generator *context, struct call *c,
 		struct ir_stmt *p = ir_stmt_init();
 		p->type = stmt_param;
 		p->arg1 = from_cnum(i);
-		p->arg2 = generate_from_node(c->argv[i], context, VALUE);
+		p->arg2 = eval(c->argv[i], context, VALUE);
 		emit(context, p);
 	}
 	s->type = stmt_call;
-	s->arg1 = generate_from_node(c->func, context, ADDRESS);
+	s->arg1 = eval(c->func, context, ADDRESS);
 	emit(context, s);
 	return result != IGNORE ? copy(s->result) : NULL;
 }
@@ -267,7 +281,7 @@ struct ir_operand *ident_emit(struct generator *context, char *ident,
 			      int result)
 {
 	//if (result == IGNORE) return NULL;
-	struct symbol *s = get_symbol(context->scope, ident);
+	struct symbol *s = get_symbol_allocd(context->scope, ident, 1);
 	if (result == ADDRESS)
 		return from_sym(s);
 	/*If the value is asked for then emit a load instruction with the symbol address */
@@ -291,7 +305,7 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u,
 	    || op == o_postdec) {
 		stmt->type = (op == o_preinc
 			      || op == o_postinc) ? stmt_add : stmt_sub;
-		stmt->arg1 = generate_from_node(u->term, context, VALUE);
+		stmt->arg1 = eval(u->term, context, VALUE);
 		stmt->arg2 = from_cnum(1);
 		stmt->result = from_reg(context->reg_cnt++);
 		emit(context, stmt);
@@ -299,7 +313,7 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u,
 		    stmt->arg1;
 		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
-		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
+		stmt->arg1 = eval(u->term, context, ADDRESS);
 		stmt->arg2 = lreg;
 		emit(context, stmt);
 		/*Post inc/dec returns the old value in a register, then increments
@@ -311,15 +325,15 @@ struct ir_operand *unop_emit(struct generator *context, struct unop *u,
 	} else if (stmt->type == stmt_load && result == ADDRESS) {
 		//Do not dereference, if an address is needed as a result
 		free(stmt);
-		return generate_from_node(u->term, context, VALUE);
+		return eval(u->term, context, VALUE);
 	} else if (stmt->type == stmt_load) {
 		/*If there is a deref/ref involved, let the parent decide */
-		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
+		stmt->arg1 = eval(u->term, context, ADDRESS);
 	} else if (stmt->type == stmt_addr) {
-		stmt->arg1 = generate_from_node(u->term, context, ADDRESS);
+		stmt->arg1 = eval(u->term, context, ADDRESS);
 	} else {
 		/*Most instructions use the value of the operands */
-		stmt->arg1 = generate_from_node(u->term, context, VALUE);
+		stmt->arg1 = eval(u->term, context, VALUE);
 	}
 	stmt->result = from_reg(context->reg_cnt++);
 	emit(context, stmt);
@@ -337,8 +351,8 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b,
 	/*Store dereferences an address, and stores the rhs value in it */
 	if (stmt->type == stmt_store) {
 		/*Uses arg1 instead of result because the write is a side effect */
-		stmt->arg2 = generate_from_node(b->rhs, context, VALUE);
-		stmt->arg1 = generate_from_node(b->lhs, context, ADDRESS);
+		stmt->arg2 = eval(b->rhs, context, VALUE);
+		stmt->arg1 = eval(b->lhs, context, ADDRESS);
 		emit(context, stmt);
 		//return result != IGNORE ? copy(stmt->arg1) : NULL;
 		return result != IGNORE ? (result ==
@@ -348,9 +362,9 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b,
 	} else if (op == o_and) {
 		/*And short circuit only evaluates the first expression if it is false */
 		int between = REQ_LABEL(context);
-		generate_from_node(b->lhs, context, IGNORE);
+		eval(b->lhs, context, IGNORE);
 		emit_label(context, between);
-		generate_from_node(b->rhs, context, IGNORE);
+		eval(b->rhs, context, IGNORE);
 		/*Patch the truelist to the next expression */
 		backpatch(TLIST_REF(b->lhs), between);
 		/*The truelist becomes the next expressions truelist */
@@ -362,8 +376,8 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b,
 		return NULL;
 	} else if (RELATIONAL(stmt->type)) {
 		/*Relational operators are actually jumps */
-		stmt->arg1 = generate_from_node(b->lhs, context, VALUE);
-		stmt->arg2 = generate_from_node(b->rhs, context, VALUE);
+		stmt->arg1 = eval(b->lhs, context, VALUE);
+		stmt->arg2 = eval(b->rhs, context, VALUE);
 		emit(context, stmt);
 		/*The conditionally jumps if the expression is false */
 		TLIST(context->parent) =
@@ -373,8 +387,8 @@ struct ir_operand *binop_emit(struct generator *context, struct binop *b,
 		    make_list(emit_jump(context, -1, UNCONDITIONAL));
 		return NULL;
 	} else {
-		stmt->arg1 = generate_from_node(b->lhs, context, VALUE);
-		stmt->arg2 = generate_from_node(b->rhs, context, VALUE);
+		stmt->arg1 = eval(b->lhs, context, VALUE);
+		stmt->arg2 = eval(b->rhs, context, VALUE);
 		stmt->result = from_reg(context->reg_cnt++);
 	}
 	emit(context, stmt);
@@ -463,14 +477,14 @@ struct ir_operand *copy(struct ir_operand *oper)
 	else if (oper->type == oper_cnum)
 		cpy = from_cnum(oper->val.constant);
 	if (cpy)
-		cpy->size = oper->size;
+		cpy->size = oper->size, cpy->iter = oper->iter;
 	return cpy;
 }
 
 struct ir_operand *from_reg(int reg)
 {
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
-	oper->size = 0;
+	oper->size = 0, oper->iter = 0;
 	oper->type = oper_reg;
 	oper->val.virt_reg = reg;
 	return oper;
@@ -483,7 +497,7 @@ struct ir_operand *from_sym(struct symbol *s)
 		exit(-1);
 	}
 	struct ir_operand *oper = malloc(sizeof(struct ir_operand));
-	oper->size = s->size;
+	oper->size = s->size, oper->iter = 0;
 	oper->type = oper_sym;
 	oper->val.sym = s;
 	return oper;
@@ -495,6 +509,7 @@ struct ir_operand *from_cnum(long cnum)
 	oper->size = INT_TYPE_SIZE;	//Default constant size is integer
 	oper->type = oper_cnum;
 	oper->val.constant = cnum;
+	oper->iter = 0;
 	return oper;
 }
 

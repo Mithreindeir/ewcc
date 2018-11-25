@@ -11,19 +11,47 @@ void bb_debug(struct bb *bb)
 {
 	if (!bb)
 		return;
-	if (bb->visited)
-		return;
 	bb->visited = 1;
-	printf("Basic Block:\n");
-	printf("------------------------------------\n");
+	//printf("Basic Block: (%d-%d)\n", bb->ln, bb->ln+bb->len-1);
+	//printf("------------------------------------\n");
+	for (int i = 0; i < bb->nphi; i++) {
+		struct phi p = bb->phi_hdr[i];
+		struct symbol *sym = p.var;
+		//if (sym->offset)
+		//	printf("[fp-%ld]", sym->offset);
+		printf("%s", sym->identifier);
+		if (p.piter)
+			printf("_%d", p.piter);
+		printf(" = (");
+		for (int j = 0; j < p.niter; j++) {
+			printf("%d", p.iters[j]);
+			if ((j+1) < p.niter)
+				printf(", ");
+		}
+		printf(")\n");
+	}
+
+	printf("IN: ");
+	for (int i = 0; i < bb->nin; i++) {
+		ir_operand_debug(bb->in[i]);
+		if ((i+1) < bb->nin) printf(", ");
+	}
+	printf("\n");
 	struct ir_stmt *stmt = bb->blk;
 	int ln = 0;
 	while (stmt && ln < bb->len) {
-		printf("%2d: ", ++ln);
+		printf("%2d: ", ++ln + bb->ln);
 		ir_stmt_debug(stmt);
 		printf("\n");
 		stmt = stmt->next;
 	}
+	printf("OUT: ");
+	for (int i = 0; i < bb->nout; i++) {
+		ir_operand_debug(bb->out[i]);
+		if ((i+1) < bb->nout) printf(", ");
+	}
+	printf("\n");
+	return;
 	for (int i = 0; i < bb->nsucc; i++) {
 		bb_debug(bb->succ[i]);
 	}
@@ -76,6 +104,8 @@ void ir_operand_debug(struct ir_operand *oper)
 			printf("fp-%ld", oper->val.sym->offset);
 		else
 			printf("_%s", oper->val.sym->identifier);
+		if (oper->iter)
+			printf("_%d", oper->iter);
 		break;
 	case oper_cnum:
 		printf("#%ld", oper->val.constant);

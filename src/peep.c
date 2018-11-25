@@ -2,7 +2,8 @@
 
 struct ir_stmt *(*reducing[NUM_PATTERNS]) (struct ir_stmt * a) = {
 	reduce_goto, reduce_cgoto, reduce_load, reduce_store_load,
-	    reduce_label, reduce_unused_label
+	    reduce_label, reduce_unused_label, reduce_double_goto,
+	    reduce_invalid_move
 };
 
 struct stmt_pattern pattern_stmts[NUM_PSTMT] = {
@@ -201,6 +202,31 @@ struct ir_stmt *reduce_unused_label(struct ir_stmt *a)
 		unlink(a);
 		ir_stmt_free(a);
 		return cur;
+	}
+	return a;
+}
+struct ir_stmt *reduce_double_goto(struct ir_stmt *a)
+{
+	struct ir_stmt *g2 = a->next;
+	if (!g2)
+		return a;
+	unlink(g2);
+	ir_stmt_free(g2);
+	return a;
+}
+
+struct ir_stmt *reduce_invalid_move(struct ir_stmt *a)
+{
+	if (!a) return NULL;
+	if (!a->result || !a->arg1) return a;
+	int r1 = a->result->val.virt_reg;
+	int r2 = a->arg1->val.virt_reg;
+	//return a;
+	if (r1 == r2) {
+		struct ir_stmt *n = a->next;
+		unlink(a);
+		ir_stmt_free(a);
+		return n->prev ? n->prev : n;
 	}
 	return a;
 }

@@ -90,8 +90,9 @@ void node_check(struct node **overwrite, struct symbol_table *scope)
 		if (TYPE(n) && TYPE(n)->type == type_array) {
 			TYPE(n)->type = type_ptr;
 			struct expr *r = unop_init(o_ref, n);
-			TYPE(r) = type_init(type_ptr);
-			TYPE(r)->next = type_copy(TYPE(n));
+			//TYPE(r) = type_init(type_ptr);
+			//TYPE(r)->next = type_copy(TYPE(n));
+			TYPE(r) = type_copy(TYPE(n));
 			*overwrite = r;
 		}
 		break;
@@ -149,7 +150,7 @@ void node_check(struct node **overwrite, struct symbol_table *scope)
 		    && (BINOP(n)->op != o_sub && BINOP(n)->op != o_asn)) {
 			printf("Invalid pointer arithmetic\n");
 			node_debug(n);
-			exit(-1);
+			//exit(-1);
 		}
 		if (v1 || v2) {
 			if (!v1) {

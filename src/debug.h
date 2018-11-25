@@ -2,7 +2,7 @@
 #define DEBUG_H
 
 #include "tac.h"
-#include "live.h"
+#include "cfg.h"
 #include "ralloc.h"
 #include "frontend/symbols.h"
 #include "frontend/ast.h"
