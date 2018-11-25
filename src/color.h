@@ -43,6 +43,8 @@ struct vertex {
 	/*Edges are just pointers to vertices */
 	struct vertex **siblings, **shared;
 	int num_siblings, num_shared;
+	/*def/kill*/
+	int def, kill;
 };
 
 struct vstk {

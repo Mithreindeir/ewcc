@@ -49,8 +49,13 @@ void bb_free(struct bb *blk)
 {
 	if (!blk)
 		return;
-	for (int i = 0; i < blk->nphi; i++)
+	for (int i = 0; i < blk->nphi; i++) {
 		free(blk->phi_hdr[i].iters);
+	}
+	for (int i = 0; i < blk->nout; i++)
+		ir_operand_free(blk->out[i]);
+	for (int i = 0; i < blk->nin; i++)
+		ir_operand_free(blk->in[i]);
 	free(blk->out);
 	free(blk->in);
 	free(blk->phi_hdr);

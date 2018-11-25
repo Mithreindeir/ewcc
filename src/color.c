@@ -7,6 +7,7 @@ struct vertex *vertex_init()
 	v->siblings = NULL, v->num_siblings = 0;
 	v->shared = NULL, v->num_shared = 0;
 	v->color = -1, v->ocolor = -1;
+	v->def = -1, v->kill = -1;
 	v->removed = 0;
 
 	return v;
@@ -84,6 +85,7 @@ void vertex_free(struct vertex *v)
 {
 	if (!v)
 		return;
+	free(v->shared);
 	free(v->siblings);
 	free(v);
 }
@@ -174,7 +176,7 @@ void color_graph(struct vertex **graph, int num, int k)
 				break;
 			}
 		}
-		if (v->color > 0)
+		if (v->color >= 0)
 			continue;
 		int clr = k;
 		for (int i = 0; i < k; i++)
