@@ -198,18 +198,9 @@ void color_graph(struct vertex **graph, int num, int k)
 			//printf("Assigned R%d -> %d\n", v->ocolor, clr);
 			v->color = clr;
 			/*All coalesced nodes get the same color*/
-			printf("share %d\n", v->ocolor);
 			for (int i = 0; i < v->num_shared; i++) {
-				printf("Already colored %d\n", v->shared[i]->color);
-				printf("Sharing alloc %d with %d\n", clr, v->shared[i]->ocolor);
 				v->shared[i]->color = clr;
 			}
-		}
-	}
-	/*If k < the degree of all nodes, some nodes may not even be in the stack */
-	for (int i = 0; i < num; i++) {
-		if (graph[i]->color < 0) {
-			printf("Spilled %d\n", graph[i]->ocolor);
 		}
 	}
 

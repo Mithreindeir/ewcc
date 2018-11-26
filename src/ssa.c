@@ -153,8 +153,6 @@ void set_ssa(struct bb **bbs, int nbbs)
 	for (int i = 0; i < nbbs; i++) {
 		struct bb *b = bbs[i];
 		cfg_ssa(bbs[i]);
-		struct ir_stmt *cur = b->blk;
-		int len = 0;
 		/*Increment the ssa iter for all the phi nodes*/
 		for (int j = 0; j < b->nphi; j++) {
 			struct phi *p = &b->phi_hdr[j];

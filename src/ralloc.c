@@ -24,20 +24,6 @@ struct vertex **add_node(struct vertex **graph, int *nvert, int tmp)
 	return graph;
 }
 
-/*Adds an edge if it doesnt already exist*/
-void make_edge(struct vertex *v1, struct vertex *v2)
-{
-	int found = 0;
-	for (int i = 0; i < v1->num_siblings; i++) {
-		if (v1->siblings[i] == v2) {
-			found = 1;
-			break;
-		}
-	}
-	if (found) return;
-	add_edge(v1, v2);
-}
-
 void repload(struct ir_stmt *cur, int temp, int ntemp)
 {
 	cur = cur->next;
@@ -45,6 +31,7 @@ void repload(struct ir_stmt *cur, int temp, int ntemp)
 		if (cur->type == stmt_label || cur->type == stmt_ugoto || cur->type == stmt_cgoto) {
 		       	break;
 		}
+
 		if (cur->arg1 && cur->arg1->type == oper_reg) {
 			if (cur->arg1->val.virt_reg == temp) {
 				cur->arg1->val.virt_reg = ntemp;
@@ -93,7 +80,6 @@ void repstore(struct ir_stmt *cur, int temp, int ntemp)
 	}
 }
 
-//struct vertex **interference(struct bb *blk, int *num_nodes)
 /*Basic Block local interference*/
 struct vertex **interference(struct bb *blk, struct vertex ** graph, int *num_nodes)
 {
@@ -123,6 +109,7 @@ struct vertex **interference(struct bb *blk, struct vertex ** graph, int *num_no
 	*num_nodes = nvert;
 	return graph;
 }
+
 int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter)
 {
 	for (int i = 0; i < nmap; i++) {
@@ -134,6 +121,36 @@ int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter)
 		}
 	}
 	return 0;
+}
+
+/*Removes unnecessary loads and stores when the memory operand is being
+ * pushed into a register*/
+struct ir_stmt *reduce_mem(struct ir_stmt *cur, int temp)
+{
+	if (cur->type == stmt_load) {
+		/*Replace the loaded register with the ssa one*/
+		repload(cur, cur->result->val.virt_reg, temp);
+		struct ir_stmt *n = cur->prev;
+		unlink(cur);
+		ir_stmt_free(cur);
+		cur = n;
+	} else if (cur->type == stmt_store) {
+		/*If the store is not with temps, don't replace*/
+		if (cur->arg2 && cur->arg2->type == oper_reg && cur->arg2->val.virt_reg >= 0) {
+			int r = cur->arg2->val.virt_reg;
+			repstore(cur, r, temp);
+			struct ir_stmt *n = cur->prev;
+			unlink(cur);
+			ir_stmt_free(cur);
+			cur = n;
+		} else {
+			cur->result = from_reg(temp);
+			ir_operand_free(cur->arg1);
+			cur->arg1 = cur->arg2, cur->arg2 = NULL;
+			cur->type = stmt_move;
+		}
+	}
+	return cur;
 }
 
 /*Puts a memory variable into a temporary register if it is viable to be spilled*/
@@ -160,47 +177,13 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 				int temp = temp_map(map, nmap, mem->val.sym, mem->iter);
 				/*Add operand to map*/
 				if (!temp) {
-					/*remove allocation for operand*/
-					struct ir_stmt *ac = bbs[0]->blk;
-					ac = ac ? ac->next : NULL;
-					while (ac && ac->type == stmt_alloc) {
-						if (ac->arg1->val.constant == mem->val.sym->size) {
-							unlink(ac);
-							ir_stmt_free(ac);
-							break;
-						}
-						ac = ac->next;
-					}
 					nmap++;
 					if (!map) map = malloc(sizeof(*map));
 					else map = realloc(map, sizeof(*map) * nmap);
 					map[nmap-1] = copy(mem);
 					temp = ssa--;
 				}
-
-				if (cur->type == stmt_load) {
-					/*Replace the loaded register with the ssa one*/
-					repload(cur, cur->result->val.virt_reg, temp);
-					struct ir_stmt *n = cur->prev;
-					unlink(cur);
-					ir_stmt_free(cur);
-					cur = n;
-				} else if (cur->type == stmt_store) {
-					/*If the store is not with temps, don't replace*/
-					if (cur->arg2 && cur->arg2->type == oper_reg && cur->arg2->val.virt_reg >= 0) {
-						int r = cur->arg2->val.virt_reg;
-						repstore(cur, r, temp);
-						struct ir_stmt *n = cur->prev;
-						unlink(cur);
-						ir_stmt_free(cur);
-						cur = n;
-					} else {
-						cur->result = from_reg(temp);
-						ir_operand_free(cur->arg1);
-						cur->arg1 = cur->arg2, cur->arg2 = NULL;
-						cur->type = stmt_move;
-					}
-				}
+				cur = reduce_mem(cur, temp);
 			}
 			cur = cur->next, len++, mem=NULL;
 		}
@@ -208,6 +191,7 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 	*num_map = nmap;
 	return map;
 }
+
 /*Procedural Wide Register allocation.
  * Takes CFG in SSA form as input*/
 void proc_alloc(struct bb **bbs, int nbbs)
@@ -217,6 +201,7 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	/*Then Basic Block local register graphs are made*/
 	struct vertex **vert = NULL;
 	int nvert = 0;
+	int nidx, oidx;
 	for (int i = 0; i < nbbs; i++) {
 		int lvert = nvert;
 		vert = interference(bbs[i], vert, &nvert);
@@ -224,14 +209,11 @@ void proc_alloc(struct bb **bbs, int nbbs)
 		for (int j = 0; j < bbs[i]->nout; j++) {
 			struct ir_operand *o = bbs[i]->out[j];
 			if (o->type != oper_sym) continue;
-			int oi = temp_map(map, nmap, o->val.sym, o->iter);
-			if (!oi) continue;
-			int idx = find_node(vert, nvert, oi);
-			if (idx < 0) {
-				vert = add_node(vert, &nvert, oi);
-				idx = nvert-1;
-			}
-			struct vertex *ov = vert[idx];
+			if (!(oidx=temp_map(map, nmap, o->val.sym, o->iter)))
+				continue;
+			if ((nidx=find_node(vert, nvert, oidx)) < 0)
+				nidx = nvert, vert = add_node(vert, &nvert, oidx);
+			struct vertex *ov = vert[nidx];
 			for (int l = lvert; l < nvert; l++) {
 				if (vert[l] == ov) continue;
 				if (ov->def > vert[l]->kill) continue;
@@ -239,15 +221,11 @@ void proc_alloc(struct bb **bbs, int nbbs)
 			}
 		}
 	}
+	/*All overlapping live ranges get edge*/
 	for (int i = 0; i < nvert; i++) {
-		printf("R%d:\n", vert[i]->ocolor);
-		printf("def'd  %d\n", vert[i]->def);
-		printf("kill'd %d\n", vert[i]->kill);
 		for (int j = 0; j < nvert; j++) {
 			if (j == i) continue;
-			if (INTERFERE(vert[i], vert[j])) {
-				make_edge(vert[i], vert[j]);
-			}
+			if (OVERLAP(vert[i], vert[j])) add_edge(vert[i], vert[j]);
 		}
 	}
 
@@ -255,31 +233,24 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	for (int i = 0; i < nbbs; i++) {
 		for (int j = 0; j < bbs[i]->nphi; j++) {
 			struct phi *p = &bbs[i]->phi_hdr[j];
-			/*The register map is used to find which temp the phi arguments have been mapped too*/
-			int r = temp_map(map, nmap, p->var, p->piter);
-			if (!r) continue;
-			int idx = find_node(vert, nvert, r);
-			if (idx < 0) {
-				vert = add_node(vert, &nvert, r);
-				idx = nvert-1;
-			}
-			struct vertex *rv = vert[idx];
-			for (int l = 0; l < p->niter; l++) {
-				int a = temp_map(map, nmap, p->var, p->iters[l]);
-				if (!a) continue;
-				idx = find_node(vert, nvert, a);
-				if (idx < 0) {
-					vert = add_node(vert, &nvert, a);
-					idx = nvert-1;
-				}
-				struct vertex *av = vert[idx];
+			if (!(oidx=temp_map(map, nmap, p->var, p->piter)))
+				continue;
+			if ((nidx=find_node(vert, nvert, oidx)) < 0)
+				nidx = nvert, vert = add_node(vert, &nvert, oidx);
+			struct vertex *rv = vert[nidx];
+			for (int k = 0; k < p->niter; k++) {
+				if (!(oidx=temp_map(map, nmap, p->var, p->iters[k])))
+					continue;
+				if ((nidx=find_node(vert, nvert, oidx)) < 0)
+					nidx = nvert, vert = add_node(vert, &nvert, oidx);
+				struct vertex *av = vert[nidx];
 				coalesce(rv, av);
 			}
 		}
 	}
 	int clrs = 6;
 	color_graph(vert, nvert, clrs);
-	repregs(bbs[0]->blk, clrs, vert, nvert);
+	repregs(bbs[0]->blk, vert, nvert);
 	for (int i = 0; i < nmap; i++)
 		ir_operand_free(map[i]);
 	free(map);
@@ -288,9 +259,8 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	free(vert);
 }
 
-void repregs(struct ir_stmt *cur, int clrs, struct vertex **vert, int nvert)
+void repregs(struct ir_stmt *cur, struct vertex **vert, int nvert)
 {
-	int redo = 0;
 	while (cur) {
 		struct ir_operand *op[3] = { cur->result, cur->arg1, cur->arg2 };
 		for (int i = 0; i < 3; i++) {
@@ -298,20 +268,7 @@ void repregs(struct ir_stmt *cur, int clrs, struct vertex **vert, int nvert)
 				continue;
 			int idx = find_node(vert, nvert, op[i]->val.virt_reg);
 			if (idx == -1) continue;
-			if (vert[idx]->color >= clrs) {
-				/*spilled*/
-				if (vert[idx]->ocolor < 0) {
-					/*Was a memory variable to start with*/
-					for (int i = 0; i < vert[idx]->num_shared; i++) {
-
-					}
-					redo = 1;
-				} else {
-					/*Scratch temp*/
-				}
-			} else {
-				op[i]->val.virt_reg = vert[idx]->color;
-			}
+			op[i]->val.virt_reg = vert[idx]->color;
 		}
 		cur = cur->next;
 	}

@@ -233,21 +233,21 @@ void loop_emit(struct generator *context, struct loop *l)
 /*For now, allocate appropriate size after frame pointer, and set the symbols value*/
 void decl_emit(struct generator *context, struct declaration *decl)
 {
-	struct ir_stmt *stmt = ir_stmt_init();
-	stmt->type = stmt_alloc;
+	//struct ir_stmt *stmt = ir_stmt_init();
+	//stmt->type = stmt_alloc;
 	alloc_type(context->scope, decl->ident);
 	struct symbol *s = get_symbol(context->scope, decl->ident);
-	//stmt->arg1 = from_sym(s);
-	stmt->arg1 = from_cnum(s->size);
+	//stmt->arg1 = from_cnum(s->size);
 	if (decl->initializer) {
-		emit(context, stmt);
-		stmt = ir_stmt_init();
+		//emit(context, stmt);
+		struct ir_stmt *stmt = ir_stmt_init();
 		stmt->type = stmt_store;
 		stmt->arg2 =
 		    eval(decl->initializer, context, VALUE);
 		stmt->arg1 = from_sym(s);
+		emit(context, stmt);
 	}
-	emit(context, stmt);
+	//emit(context, stmt);
 }
 
 /*Generates statments to set the params to the args, then inserts a call, optionally saving result*/

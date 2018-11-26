@@ -129,9 +129,9 @@ void fmt_opr(struct ir_operand *oper)
 			if (!oper->val.sym) break;
 			signed off = oper->val.sym->offset;
 			if (off < 0)
-				printf("ebp+%ld", -off);
+				printf("ebp+%d", -off);
 			else if (off > 0)
-				printf("ebp-%ld", off);
+				printf("ebp-%d", off);
 			else printf("%s", oper->val.sym->identifier);
 			break;
 		case oper_cnum: printf("%ld", oper->val.constant); 	break;

@@ -84,8 +84,6 @@ int main()
 				bb_debug(bbs[i]);
 			}
 			free(doms);
-			//for (int i = 0; i < nbbs; i++)
-			//	local_alloc(bbs[i], 3);
 		}
 		//optimize(stmt);
 		printf("------------------------------------\n");
@@ -96,7 +94,7 @@ int main()
 		}
 		free(bbs);
 		printf("------------------------------------\n");
-		//instr(stmt);
+		instr(stmt);
 
 		struct ir_stmt *next = NULL;
 		while (stmt) {
