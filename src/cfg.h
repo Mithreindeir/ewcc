@@ -41,7 +41,7 @@ struct bb **bb_array_del(struct bb **bbs, int *nbbs, int idx);
 
 struct bb **cfg_dead(struct bb **bbs, int *nbbs);
 struct bb **cfg(struct ir_stmt *entry, int *len);
-void cfg_liveness(struct bb *bb);
+int cfg_liveiter(struct bb *bb);
 void cfg_edge(struct bb **bbs, int nbb, int *labels);
 void cfg_postorder(struct bb **bbs, int nbb);
 void postorder(struct bb *top, int *cnt);

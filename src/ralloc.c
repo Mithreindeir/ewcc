@@ -103,8 +103,7 @@ struct vertex **interference(struct bb *blk, struct vertex ** graph, int *num_no
 				graph[idx]->kill = len+blk->ln;
 			}
 		}
-		len++;
-		cur = cur->next;
+		cur = cur->next, len++;
 	}
 	*num_nodes = nvert;
 	return graph;
@@ -125,13 +124,14 @@ int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter)
 
 /*Removes unnecessary loads and stores when the memory operand is being
  * pushed into a register*/
-struct ir_stmt *reduce_mem(struct ir_stmt *cur, int temp)
+struct ir_stmt *reduce_mem(struct bb *b, struct ir_stmt *cur, int temp)
 {
 	if (cur->type == stmt_load) {
 		/*Replace the loaded register with the ssa one*/
 		repload(cur, cur->result->val.virt_reg, temp);
 		struct ir_stmt *n = cur->prev;
 		unlink(cur);
+		b->len--;
 		ir_stmt_free(cur);
 		cur = n;
 	} else if (cur->type == stmt_store) {
@@ -141,6 +141,7 @@ struct ir_stmt *reduce_mem(struct ir_stmt *cur, int temp)
 			repstore(cur, r, temp);
 			struct ir_stmt *n = cur->prev;
 			unlink(cur);
+			b->len--;
 			ir_stmt_free(cur);
 			cur = n;
 		} else {
@@ -166,8 +167,9 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 		struct bb *b = bbs[i];
 		struct ir_stmt *cur = b->blk;
 		int len = 0;
+		int blen = b->len;
 		/*Iterate through load/store statments and put memory into registers*/
-		while (cur && len < b->len) {
+		while (cur && len < blen) {
 			if (cur->type == stmt_store || cur->type == stmt_load) {
 				if (cur->arg1 && cur->arg1->type == oper_sym)
 					mem = cur->arg1;
@@ -183,7 +185,7 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 					map[nmap-1] = copy(mem);
 					temp = ssa--;
 				}
-				cur = reduce_mem(cur, temp);
+				cur = reduce_mem(bbs[i], cur, temp);
 			}
 			cur = cur->next, len++, mem=NULL;
 		}
@@ -248,12 +250,13 @@ void proc_alloc(struct bb **bbs, int nbbs)
 			}
 		}
 	}
+
 	int clrs = 6;
 	color_graph(vert, nvert, clrs);
 	int spill = 0;
 	/*Check for spilled registers*/
 	for (int i = 0; i < nvert; i++) {
-		if (vert[i]->color == clrs) {
+		if (vert[i]->color == clrs && vert[i]->ocolor < 0) {
 			/*Spill back to SSA reg*/
 			vert[i]->color = vert[i]->ocolor;
 			if (vert[i]->color > 0) {
@@ -278,10 +281,17 @@ void proc_alloc(struct bb **bbs, int nbbs)
 				struct ir_operand *var = map[(-st)-1];
 				vert[i]->ocolor = ++max;
 				vert[i]->color = -1;
-				insloadstore(bbs[0]->blk, st, max, var);
+				insloadstore(bbs[0], vert[i], st, var);
 				free(vert[i]->shared);
+				free(vert[i]->siblings);
+				vert[i]->siblings = NULL;
+				vert[i]->num_siblings = 0;
 				vert[i]->shared = NULL;
 				vert[i]->num_shared = 0;
+				for (int j = 0; j < nvert; j++) {
+					if (j == i) continue;
+					if (OVERLAP(vert[i], vert[j])) add_edge(vert[i], vert[j]);
+				}
 			}
 		}
 		for (int i = 0; i < nvert; i++) {
@@ -301,8 +311,12 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	free(vert);
 }
 
-void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *rep)
+void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *rep)
 {
+	struct ir_stmt *cur = b->blk;
+	int temp = v->ocolor;
+	int s=-1, e=-1;
+	int iter = b->ln;
 	while (cur) {
 		if (cur->arg1 && cur->arg1->type == oper_reg) {
 			if (cur->arg1->val.virt_reg == stemp) {
@@ -314,6 +328,9 @@ void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *r
 				if (cur->prev) cur->prev->next = load;
 				cur->prev = load;
 				load->next = cur;
+				b->len++;
+				if (s==-1) s = iter;
+				if (e==-1||iter>e) e = iter;
 			}
 		}
 		if (cur->arg2 && cur->arg2->type == oper_reg) {
@@ -326,6 +343,9 @@ void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *r
 				if (cur->prev) cur->prev->next = load;
 				cur->prev = load;
 				load->next = cur;
+				b->len++;
+				if (s==-1) s = iter;
+				if (e==-1||iter>e) e = iter;
 			}
 		}
 		if (cur->result && cur->result->type == oper_reg) {
@@ -337,6 +357,7 @@ void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *r
 					cur->arg2 = cur->arg1;
 					cur->arg1 = copy(rep);
 					cur->result = NULL;
+					b->len++;
 				} else {
 					cur->result->val.virt_reg = temp;
 					struct ir_stmt *store = ir_stmt_init();
@@ -347,13 +368,15 @@ void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *r
 					if (cur->next) cur->next->prev = store;
 					cur->next = store;
 					store->prev = cur;
+					b->len++;
+					if (s==-1) s = iter;
+					if (e==-1||iter>e) e = iter;
 				}
 			}
 		}
-
-
-		cur = cur->next;
+		cur = cur->next, iter++;
 	}
+	v->def = s, v->kill = e;
 }
 
 void repregs(struct ir_stmt *cur, struct vertex **vert, int nvert)

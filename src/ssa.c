@@ -161,11 +161,9 @@ void set_ssa(struct bb **bbs, int nbbs)
 	/*SSA Form*/
 	for (int i = 0; i < nbbs; i++) {
 		struct bb *b = bbs[i];
-		for (int i = 0; i < b->nin; i++) {
-			b->in[i]->iter = b->in[i]->val.sym->iter;
-		}
-		/*Set phi arguments basic on block inputs*/
+		/*Preset inputs as last SSA iter, then set phi arguments*/
 		for (int k = 0; k < b->nin; k++) {
+			b->in[k]->iter = b->in[k]->val.sym->iter;
 			if (b->in[k]->type != oper_sym) continue;
 			struct symbol *s = b->in[k]->val.sym;
 			add_phi_arg(b, s, b->in[k]->iter);
@@ -175,6 +173,7 @@ void set_ssa(struct bb **bbs, int nbbs)
 			struct phi *p = &b->phi_hdr[j];
 			p->var->iter++;
 			p->piter = p->var->iter;
+			/*Update inputs that are used in phi functions*/
 			for (int i = 0; i < b->nin; i++) {
 				if (p->var == b->in[i]->val.sym)
 					b->in[i]->iter = p->piter;

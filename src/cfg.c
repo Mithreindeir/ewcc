@@ -88,103 +88,6 @@ struct bb **bb_array_del(struct bb **bbs, int *nbbs, int idx)
 	return bbs;
 }
 
-/*From bottom up, prune liveness info*/
-void cfg_liveprune(struct bb *bb)
-{
-	/*If var X is not used in block Y and not in Y's out, remove from
-	 * all predecessors outputs, last block has implicit NULL outputs*/
-	struct ir_operand **use=NULL;
-	int len = 0, nuse = 0;
-	struct ir_stmt *cur = bb->blk;
-	while (cur && len < bb->len) {
-		/*Every variable is only accessed through stores & loads*/
-		if (cur->type == stmt_store || cur->type == stmt_load) {
-			struct symbol *s = cur->arg1->val.sym;
-			int repeat = 0;
-			for (int j = 0; j < nuse; j++) {
-				if (use[j]->val.sym == s) {
-					repeat = 1;
-					ir_operand_free(use[j]);
-					use[j] = copy(cur->arg1);
-					break;
-				}
-			}
-			if (!repeat) {
-				nuse++;
-				if (!use) use = malloc(sizeof(*use));
-				else use = realloc(use, sizeof(*use)*nuse);
-				use[nuse-1] = copy(cur->arg1);
-			}
-		}
-		cur = cur->next, len++;
-	}
-	printf("BLK: ");
-	ir_stmt_debug(bb->blk);
-	printf("\n");
-	printf("used: ");
-	for (int i = 0; i < nuse; i++) {
-		ir_operand_debug(use[i]);
-		if ((i+1) < nuse)
-			printf(", ");
-	}
-	printf("\n");
-	int found = 0;
-	for (int i = 0; i < bb->nin; i++) {
-		found = 0;
-		for (int j = 0; j < nuse; j++) {
-			if (bb->in[i]->val.sym == use[j]->val.sym) {
-				found = 1;
-				break;
-			}
-			printf("not equal: ");
-			ir_operand_debug(bb->in[i]);
-			printf(" & ");
-			ir_operand_debug(use[j]);
-			printf("\n");
-		}
-		for (int j = 0; j < bb->nout; j++) {
-			if (bb->in[i]->val.sym == bb->out[j]->val.sym) {
-				found = 1;
-				break;
-			}
-		}
-		if (!found) {
-			printf("Removing: ");
-			ir_operand_debug(bb->in[i]);
-			printf("\n");
-			for (int j = 0; j < bb->npred; j++) {
-				struct bb *p = bb->pred[j];
-				for (int k = 0; k < p->nout; k++) {
-					if (p->out[k]->val.sym != bb->in[i]->val.sym) continue;
-					if ((k+1) < p->nout) {
-						memmove(p->out+k, p->out+k+1, (p->nout-k-1)*sizeof(*p->out));
-					}
-					p->nout--;
-					if (!p->nout) {
-						free(p->out);
-						p->out = NULL;
-					} else {
-						p->out = realloc(p->out, sizeof(*p->out) * p->nout);
-					}
-					k--;
-				}
-			}
-			/*Remove from input and predecessors output's*/
-			if ((i+1) < bb->nin) {
-				memmove(bb->in+i, bb->in+i+1, (bb->nin-i-1)*sizeof(*bb->in));
-			}
-			bb->nin--;
-			if (!bb->nin) {
-				free(bb->in);
-				bb->in = NULL;
-			} else {
-				bb->in = realloc(bb->in, sizeof(*bb->in) * bb->nin);
-			}
-			i--;
-		}
-	}
-}
-
 int in_oper_array(struct ir_operand **arr, int narr, struct ir_operand *op)
 {
 	for (int i = 0; i < narr; i++) {
@@ -207,10 +110,8 @@ int cfg_liveiter(struct bb *bb)
 	struct ir_operand **in=NULL, **out=NULL;
 	struct ir_operand **use=NULL, **def=NULL;
 	int nin=0, nout=0, nuse=0, ndef=0;
-	printf("%p\n", bb);
 	for (int i = 0; i < bb->nsucc; i++) {
 		struct bb *s = bb->succ[i];
-		printf("\t%p:%d\n", s, s->nin);
 		for (int j = 0; j < s->nin; j++) {
 			if (in_oper_array(out, nout, s->in[j])) continue;
 			nout++;
@@ -224,7 +125,6 @@ int cfg_liveiter(struct bb *bb)
 	while (cur && len < bb->len) {
 		/*Every variable is only accessed through stores & loads*/
 		if (cur->type == stmt_store || cur->type == stmt_load) {
-			struct symbol *s = cur->arg1->val.sym;
 			int used = in_oper_array(use, nuse, cur->arg1);
 			int defined = in_oper_array(def, ndef, cur->arg1);
 			if (cur->type == stmt_load && !used) {
@@ -243,8 +143,10 @@ int cfg_liveiter(struct bb *bb)
 		cur = cur->next, len++;
 	}
 	/*in[b] = use[b] U (out[b] - def[b])*/
-	nin = nuse;
-	in = malloc(sizeof(*in) * nin);
+	if (nuse > 0) {
+		nin = nuse;
+		in = malloc(sizeof(*in) * nin);
+	}
 	for (int i = 0; i < nuse; i++)
 		in[i] = copy(use[i]);
 	for (int i = 0; i < nout; i++) {
@@ -270,110 +172,21 @@ int cfg_liveiter(struct bb *bb)
 			}
 		}
 	}
-	printf("USE:\n");
-	for (int i = 0; i < nuse; i++) {
-		ir_operand_debug(use[i]);
-		printf(", ");
-	}
-	printf("\n");
+	for (int i = 0; i < bb->nin; i++)
+		ir_operand_free(bb->in[i]);
+	for (int i = 0; i < bb->nout; i++)
+		ir_operand_free(bb->out[i]);
 	free(bb->out);
 	free(bb->in);
 	bb->in = in, bb->out = out;
 	bb->nin = nin, bb->nout = nout;
+	for (int i = 0; i < nuse; i++)
+		ir_operand_free(use[i]);
+	for (int i = 0; i < ndef; i++)
+		ir_operand_free(def[i]);
+	free(use);
+	free(def);
 	return change;
-}
-
-
-/*Greedy algorithm to set liveness information, must be pruned for correct subset*/
-void cfg_liveness(struct bb *bb)
-{
-	/*The sum out the predecessors outputs are this blocks inputs*/
-	struct ir_operand **in = NULL;
-	int nin = 0;
-	for (int j = 0; j < bb->npred; j++) {
-			struct bb *p = bb->pred[j];
-			int oi = nin;
-			nin += p->nout;
-			if (!in) in = malloc(sizeof(*in)*nin);
-			else in = realloc(in, sizeof(*in)*nin);
-			for (int k = 0; k < p->nout; k++) {
-				in[oi+k] = copy(p->out[k]);
-			}
-	}
-	struct ir_operand **out = NULL;
-	int nout = 0;
-	/*The sum of the set of defined variables and inputs are this blocks outputs*/
-	struct ir_stmt *cur = bb->blk;
-	int len = 0;
-	while (bb->nsucc && cur && len < bb->len) {
-		/*Every variable is only accessed through stores & loads*/
-		if (cur->type == stmt_store || cur->type == stmt_load) {
-			struct symbol *s = cur->arg1->val.sym;
-			int repeat = 0;
-			for (int j = 0; j < nout; j++) {
-				if (out[j]->val.sym == s) {
-					repeat = 1;
-					ir_operand_free(out[j]);
-					out[j] = copy(cur->arg1);
-					break;
-				}
-			}
-			if (!repeat) {
-				nout++;
-				if (!out) out = malloc(sizeof(*out));
-				else out = realloc(out, sizeof(*out)*nout);
-				out[nout-1] = copy(cur->arg1);
-				/*if used before defined, must be in input*/
-				if (cur->type == stmt_load) {
-					for (int i = 0; i < nin; i++) {
-						if (in[i]->val.sym == s) {
-							repeat = 1;
-							break;
-						}
-					}
-					if (!repeat) {
-						nin++;
-						if (!in) in = malloc(sizeof(*in));
-						else in = realloc(in, sizeof(*in)*nin);
-						in[nin-1] = copy(cur->arg1);
-					}
-				}
-			}
-		}
-		cur = cur->next, len++;
-	}
-	/*Add in unused input's to the output*/
-	for (int i = 0; bb->nsucc && i < nin; i++) {
-		int repeat = 0;
-		for (int j = 0; j < nout; j++) {
-			if (out[j]->val.sym == in[i]->val.sym) {
-					repeat = 1;
-					if (out[j]->iter < in[i]->iter) {
-						ir_operand_free(out[j]);
-						out[j] = copy(in[i]);
-					}
-					break;
-			}
-		}
-		if (!repeat) {
-			nout++;
-			if (!out) out = malloc(sizeof(*out));
-			else out = realloc(out, sizeof(*out)*nout);
-			out[nout-1] = copy(in[i]);
-		}
-	}
-	/*phi statements force update of iterator on outputs*/
-	for (int j = 0; j < bb->nphi; j++) {
-			struct phi *p = &bb->phi_hdr[j];
-			for (int i = 0; i < nout; i++) {
-				if (out[i]->val.sym == p->var) {
-					if (out[i]->iter < p->piter)
-						out[i]->iter = p->piter;
-				}
-			}
-	}
-	bb->in = in, bb->out = out;
-	bb->nin = nin, bb->nout = nout;
 }
 
 struct bb **cfg_dead(struct bb **bbs, int *nbbs)
