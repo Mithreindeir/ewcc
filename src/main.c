@@ -48,44 +48,18 @@ int main()
 		ir_debug(stmt);
 		int nbbs = 0;
 		printf("------------------------------------\n");
-		printf("Interference Graph\n");
-		printf("------------------------------------\n");
 		struct bb **bbs = cfg(stmt, &nbbs);
 		if (bbs && bbs[0]) {
-			/*
-			for (int i = 0; i < nbbs; i++)
-				printf("%d=(%d-%d)\n", i,bbs[i]->ln, bbs[i]->ln + bbs[i]->len);
-			printf("digraph F {\n");
-			for (int i = 0; i < nbbs; i++) {
-				struct bb *n = bbs[i];
-				for (int j = 0; j < n->nsucc; j++) {
-					printf("\t\"(%d-%d)\" -> \"(%d-%d)\"\n", n->ln, n->ln+n->len, n->succ[j]->ln, n->succ[j]->ln + n->succ[j]->len);
-				}
-			}
-			printf("}\n");
-			*/
 			struct bb **doms = calc_dom(bbs, nbbs);
-			/*
-			for (int i = 0; i < nbbs; i++) {
-				printf("(%d-%d) - ", bbs[i]->ln, bbs[i]->ln + bbs[i]->len);
-				if (doms[i])
-					printf("doms[%d]= (%d-%d)\n", i,doms[i]->ln, doms[i]->ln+doms[i]->len);
-				else printf("doms[%d] = null\n", i);
-			}
-			*/
 			calc_df(bbs, doms, nbbs);
 			set_ssa(bbs, nbbs);
 			for (int i = 0; i < nbbs; i++) {
 				bb_debug(bbs[i]);
 			}
-			printf("------------------------------------\n");
 			proc_alloc(bbs, nbbs);
-			for (int i = 0; i < nbbs; i++) {
-				bb_debug(bbs[i]);
-			}
 			free(doms);
 		}
-		//optimize(stmt);
+		optimize(stmt);
 		printf("------------------------------------\n");
 		printf("After Register Rewriting:\n");
 		ir_debug(stmt);
@@ -94,7 +68,7 @@ int main()
 		}
 		free(bbs);
 		printf("------------------------------------\n");
-		instr(stmt);
+		//instr(stmt);
 
 		struct ir_stmt *next = NULL;
 		while (stmt) {

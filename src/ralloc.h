@@ -23,6 +23,7 @@ int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter);
 
 void repload(struct ir_stmt *cur, int temp, int ntemp);
 void repstore(struct ir_stmt *cur, int temp, int ntemp);
+void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *rep);
 void repregs(struct ir_stmt *cur, struct vertex **vert, int nvert);
 void proc_alloc(struct bb **bbs, int nbbs);
 

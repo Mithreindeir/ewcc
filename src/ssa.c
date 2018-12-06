@@ -96,6 +96,7 @@ void add_phi(struct bb *blk, struct symbol *s)
 
 void add_phi_arg(struct bb *blk, struct symbol *s, int iter)
 {
+	if (!iter) return;
 	struct phi *p;
 	for (int i = 0; i < blk->nphi; i++) {
 		p = &blk->phi_hdr[i];
@@ -149,22 +150,39 @@ void set_ssa(struct bb **bbs, int nbbs)
 	/*First add phi nodes*/
 	for (int i = 0; i < nbbs; i++)
 		set_phi(bbs[i]);
+	/*Iteratively solve liveness info*/
+	int change = 1;
+	while (change) {
+		change = 0;
+		for (int i = nbbs-1; i >= 0; i--) {
+			change = cfg_liveiter(bbs[i]) ?  1 : change;
+		}
+	}
 	/*SSA Form*/
 	for (int i = 0; i < nbbs; i++) {
 		struct bb *b = bbs[i];
-		cfg_ssa(bbs[i]);
-		/*Increment the ssa iter for all the phi nodes*/
-		for (int j = 0; j < b->nphi; j++) {
-			struct phi *p = &b->phi_hdr[j];
-			p->var->iter++;
-			p->piter = p->var->iter;
+		for (int i = 0; i < b->nin; i++) {
+			b->in[i]->iter = b->in[i]->val.sym->iter;
 		}
-		cfg_liveness(b);
 		/*Set phi arguments basic on block inputs*/
 		for (int k = 0; k < b->nin; k++) {
 			if (b->in[k]->type != oper_sym) continue;
 			struct symbol *s = b->in[k]->val.sym;
 			add_phi_arg(b, s, b->in[k]->iter);
+		}
+		/*Increment the ssa iter for all the phi nodes*/
+		for (int j = 0; j < b->nphi; j++) {
+			struct phi *p = &b->phi_hdr[j];
+			p->var->iter++;
+			p->piter = p->var->iter;
+			for (int i = 0; i < b->nin; i++) {
+				if (p->var == b->in[i]->val.sym)
+					b->in[i]->iter = p->piter;
+			}
+		}
+		cfg_ssa(bbs[i]);
+		for (int i = 0; i < b->nout; i++) {
+			b->out[i]->iter = b->out[i]->val.sym->iter;
 		}
 		/*Set DF phi arguments based on block outputs*/
 		for (int j = 0; j < b->nfront; j++) {

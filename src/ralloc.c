@@ -250,13 +250,110 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	}
 	int clrs = 6;
 	color_graph(vert, nvert, clrs);
-	repregs(bbs[0]->blk, vert, nvert);
+	int spill = 0;
+	/*Check for spilled registers*/
+	for (int i = 0; i < nvert; i++) {
+		if (vert[i]->color == clrs) {
+			/*Spill back to SSA reg*/
+			vert[i]->color = vert[i]->ocolor;
+			if (vert[i]->color > 0) {
+				printf("Spilling temps isn't allowed yet\n");
+				exit(1);
+			}
+			spill = 1;
+		}
+	}
+	if (spill) {
+		int max=0;
+		for (int i = 0; i < nvert; i++) {
+			if (vert[i]->ocolor > max) max = vert[i]->ocolor;
+		}
+		/*Remove spilled value from interference graph
+		 * Create a new scratch reg and replace it in the interference graph
+		 * but no coalescing*/
+		/*Retry to color graph and repeat if needed*/
+		for (int i = 0; i < nvert; i++) {
+			if (vert[i]->ocolor == vert[i]->color && vert[i]->ocolor < 0) {
+				int st = vert[i]->ocolor;
+				struct ir_operand *var = map[(-st)-1];
+				vert[i]->ocolor = ++max;
+				vert[i]->color = -1;
+				insloadstore(bbs[0]->blk, st, max, var);
+				free(vert[i]->shared);
+				vert[i]->shared = NULL;
+				vert[i]->num_shared = 0;
+			}
+		}
+		for (int i = 0; i < nvert; i++) {
+			vert[i]->color = -1;
+			vert[i]->removed = 0;
+		}
+		color_graph(vert, nvert, clrs);
+		repregs(bbs[0]->blk, vert, nvert);
+	} else {
+		repregs(bbs[0]->blk, vert, nvert);
+	}
 	for (int i = 0; i < nmap; i++)
 		ir_operand_free(map[i]);
 	free(map);
 	for (int i = 0; i < nvert; i++)
 		vertex_free(vert[i]);
 	free(vert);
+}
+
+void insloadstore(struct ir_stmt *cur, int stemp, int temp, struct ir_operand *rep)
+{
+	while (cur) {
+		if (cur->arg1 && cur->arg1->type == oper_reg) {
+			if (cur->arg1->val.virt_reg == stemp) {
+				cur->arg1->val.virt_reg = temp;
+				struct ir_stmt *load = ir_stmt_init();
+				load->type = stmt_load;
+				load->arg1 = copy(rep);
+				load->result = from_reg(temp);
+				if (cur->prev) cur->prev->next = load;
+				cur->prev = load;
+				load->next = cur;
+			}
+		}
+		if (cur->arg2 && cur->arg2->type == oper_reg) {
+			if (cur->arg2->val.virt_reg == stemp) {
+				cur->arg2->val.virt_reg = temp;
+				struct ir_stmt *load = ir_stmt_init();
+				load->type = stmt_load;
+				load->arg1 = copy(rep);
+				load->result = from_reg(temp);
+				if (cur->prev) cur->prev->next = load;
+				cur->prev = load;
+				load->next = cur;
+			}
+		}
+		if (cur->result && cur->result->type == oper_reg) {
+			if (cur->result->val.virt_reg == stemp) {
+				cur->result->val.virt_reg = temp;
+				if (cur->type == stmt_move) {
+					cur->type = stmt_store;
+					ir_operand_free(cur->result);
+					cur->arg2 = cur->arg1;
+					cur->arg1 = copy(rep);
+					cur->result = NULL;
+				} else {
+					cur->result->val.virt_reg = temp;
+					struct ir_stmt *store = ir_stmt_init();
+					store->type = stmt_store;
+					store->arg1 = copy(rep);
+					store->arg2 = from_reg(temp);
+					store->next = cur->next;
+					if (cur->next) cur->next->prev = store;
+					cur->next = store;
+					store->prev = cur;
+				}
+			}
+		}
+
+
+		cur = cur->next;
+	}
 }
 
 void repregs(struct ir_stmt *cur, struct vertex **vert, int nvert)

@@ -235,8 +235,9 @@ void decl_emit(struct generator *context, struct declaration *decl)
 {
 	//struct ir_stmt *stmt = ir_stmt_init();
 	//stmt->type = stmt_alloc;
-	alloc_type(context->scope, decl->ident);
+	//alloc_type(context->scope, decl->ident);
 	struct symbol *s = get_symbol(context->scope, decl->ident);
+	s->allocd = 1;
 	//stmt->arg1 = from_cnum(s->size);
 	if (decl->initializer) {
 		//emit(context, stmt);
