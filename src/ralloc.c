@@ -124,14 +124,17 @@ int temp_map(struct ir_operand **map, int nmap, struct symbol *var, int iter)
 
 /*Removes unnecessary loads and stores when the memory operand is being
  * pushed into a register*/
-struct ir_stmt *reduce_mem(struct bb *b, struct ir_stmt *cur, int temp)
+struct ir_stmt *reduce_mem(struct bb **bbs, int nbbs, int idx, struct ir_stmt *cur, int temp)
 {
+	struct bb *b = bbs[idx];
 	if (cur->type == stmt_load) {
 		/*Replace the loaded register with the ssa one*/
 		repload(cur, cur->result->val.virt_reg, temp);
 		struct ir_stmt *n = cur->prev;
 		unlink(cur);
 		b->len--;
+		for (int i = idx+1; i < nbbs; i++)
+			bbs[i]->ln--;
 		ir_stmt_free(cur);
 		cur = n;
 	} else if (cur->type == stmt_store) {
@@ -142,6 +145,8 @@ struct ir_stmt *reduce_mem(struct bb *b, struct ir_stmt *cur, int temp)
 			struct ir_stmt *n = cur->prev;
 			unlink(cur);
 			b->len--;
+			for (int i = idx+1; i < nbbs; i++)
+				bbs[i]->ln--;
 			ir_stmt_free(cur);
 			cur = n;
 		} else {
@@ -185,7 +190,7 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 					map[nmap-1] = copy(mem);
 					temp = ssa--;
 				}
-				cur = reduce_mem(bbs[i], cur, temp);
+				cur = reduce_mem(bbs, nbbs, i, cur, temp);
 			}
 			cur = cur->next, len++, mem=NULL;
 		}
@@ -200,6 +205,10 @@ void proc_alloc(struct bb **bbs, int nbbs)
 {
 	int nmap = 0;
 	struct ir_operand **map = mem2reg(bbs, nbbs, &nmap);
+			for (int i = 0; i < nbbs; i++) {
+				bb_debug(bbs[i]);
+			}
+
 	/*Then Basic Block local register graphs are made*/
 	struct vertex **vert = NULL;
 	int nvert = 0;
@@ -266,6 +275,7 @@ void proc_alloc(struct bb **bbs, int nbbs)
 			spill = 1;
 		}
 	}
+
 	if (spill) {
 		int max=0;
 		for (int i = 0; i < nvert; i++) {
@@ -281,13 +291,14 @@ void proc_alloc(struct bb **bbs, int nbbs)
 				struct ir_operand *var = map[(-st)-1];
 				vert[i]->ocolor = ++max;
 				vert[i]->color = -1;
-				insloadstore(bbs[0], vert[i], st, var);
+				insloadstore(bbs[0], vert[i], st, var, vert, nvert);
 				free(vert[i]->shared);
 				free(vert[i]->siblings);
 				vert[i]->siblings = NULL;
 				vert[i]->num_siblings = 0;
 				vert[i]->shared = NULL;
 				vert[i]->num_shared = 0;
+				/*TODO adjust def/kill numbers after removing from list*/
 				for (int j = 0; j < nvert; j++) {
 					if (j == i) continue;
 					if (OVERLAP(vert[i], vert[j])) add_edge(vert[i], vert[j]);
@@ -311,7 +322,7 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	free(vert);
 }
 
-void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *rep)
+void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *rep, struct vertex **vert, int nvert)
 {
 	struct ir_stmt *cur = b->blk;
 	int temp = v->ocolor;
@@ -329,6 +340,7 @@ void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *
 				cur->prev = load;
 				load->next = cur;
 				b->len++;
+				update_ln(vert, nvert, iter-1, 1);
 				if (s==-1) s = iter;
 				if (e==-1||iter>e) e = iter;
 			}
@@ -344,7 +356,9 @@ void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *
 				cur->prev = load;
 				load->next = cur;
 				b->len++;
+				update_ln(vert, nvert, iter-1, 1);
 				if (s==-1) s = iter;
+				iter++;
 				if (e==-1||iter>e) e = iter;
 			}
 		}
@@ -357,7 +371,7 @@ void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *
 					cur->arg2 = cur->arg1;
 					cur->arg1 = copy(rep);
 					cur->result = NULL;
-					b->len++;
+					//b->len++;
 				} else {
 					cur->result->val.virt_reg = temp;
 					struct ir_stmt *store = ir_stmt_init();
@@ -369,6 +383,7 @@ void insloadstore(struct bb *b, struct vertex *v, int stemp, struct ir_operand *
 					cur->next = store;
 					store->prev = cur;
 					b->len++;
+					update_ln(vert, nvert, iter-1, 1);
 					if (s==-1) s = iter;
 					if (e==-1||iter>e) e = iter;
 				}
@@ -391,5 +406,15 @@ void repregs(struct ir_stmt *cur, struct vertex **vert, int nvert)
 			op[i]->val.virt_reg = vert[idx]->color;
 		}
 		cur = cur->next;
+	}
+}
+
+void update_ln(struct vertex **graph, int nvert, int ln, int inc)
+{
+	for (int i = 0; i < nvert; i++) {
+		if (ln > graph[i]->kill) continue;
+		graph[i]->kill+=inc?1:-1;
+		if (graph[i]->def <= ln)
+			graph[i]->def+=inc?1:-1;
 	}
 }

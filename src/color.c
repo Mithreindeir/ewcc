@@ -137,9 +137,7 @@ void fill_stack(struct vertex **graph, int num, struct vstk *stk, int k)
 		if (degree(graph[i]) < k) {
 			graph[i]->removed = 1;
 			push(stk, graph[i]);
-			fill_stack(graph, num, stk, k);
-			return;
-		}
+			fill_stack(graph, num, stk, k); return; }
 	}
 	/*If reaches, here, all nodes >= k degrees so some must be spilled*/
 	struct vertex *v = NULL;
@@ -190,6 +188,13 @@ void color_graph(struct vertex **graph, int num, int k)
 			if (!used_colors[i]) {
 				clr = i;
 				break;
+			}
+		}
+		if (v->ocolor == 17) {
+
+			printf("heyo %d\n", clr);
+			for (int i = 0; i < v->num_siblings; i++) {
+				printf("\tedge v%d R%d\n", v->siblings[i]->ocolor, v->siblings[i]->color);
 			}
 		}
 		if (clr >= k) {	/*spill */
