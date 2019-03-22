@@ -135,8 +135,10 @@ void func_emit(struct generator *context, struct func *fn)
 	backpatch(FLIST_REF(fn->body), end);
 	struct ir_stmt *s = ir_stmt_init();
 	s->type = stmt_ret;
+	scope_emit(context, BLOCK(fn->body)->scope);
 	emit(context, s);
 	/*Coalesce stack allocations to the entry point of function*/
+	/*
 	struct ir_stmt *cur = f, *la = f, *next;
 	while (cur && cur != s) {
 		next = cur->next;
@@ -150,6 +152,7 @@ void func_emit(struct generator *context, struct func *fn)
 		}
 		cur = next;
 	}
+	*/
 	context->scope = BLOCK(fn->body)->scope->parent;
 }
 
@@ -179,6 +182,8 @@ void cond_emit(struct generator *context, struct cond *c)
 
 	emit_label(context, start);
 	eval(c->body, context, IGNORE);
+	if (c->body->type == node_block)
+		scope_emit(context, BLOCK(c->body)->scope);
 	/*If there is a else block, then emit an unconditional jump to the end of that */
 	if (c->otherwise)
 		emit_jump(context, end, UNCONDITIONAL);
@@ -211,6 +216,9 @@ void loop_emit(struct generator *context, struct loop *l)
 	emit_jump(context, cmp, UNCONDITIONAL);
 	emit_label(context, start);
 	eval(l->body, context, IGNORE);
+
+	if (l->body->type == node_block)
+		scope_emit(context, BLOCK(l->body)->scope);
 	eval(l->iter, context, IGNORE);
 	emit_label(context, cmp);
 	eval(l->condition, context, IGNORE);
@@ -233,22 +241,22 @@ void loop_emit(struct generator *context, struct loop *l)
 /*For now, allocate appropriate size after frame pointer, and set the symbols value*/
 void decl_emit(struct generator *context, struct declaration *decl)
 {
-	//struct ir_stmt *stmt = ir_stmt_init();
-	//stmt->type = stmt_alloc;
+	struct ir_stmt *stmt = ir_stmt_init();
+	stmt->type = stmt_alloc;
 	//alloc_type(context->scope, decl->ident);
 	struct symbol *s = get_symbol(context->scope, decl->ident);
 	s->allocd = 1;
-	//stmt->arg1 = from_cnum(s->size);
+	stmt->result = from_sym(s);
+	stmt->arg1 = from_cnum(s->size);
 	if (decl->initializer) {
-		//emit(context, stmt);
-		struct ir_stmt *stmt = ir_stmt_init();
+		emit(context, stmt);
+		stmt = ir_stmt_init();
 		stmt->type = stmt_store;
 		stmt->arg2 =
 		    eval(decl->initializer, context, VALUE);
 		stmt->arg1 = from_sym(s);
-		emit(context, stmt);
 	}
-	//emit(context, stmt);
+	emit(context, stmt);
 }
 
 /*Generates statments to set the params to the args, then inserts a call, optionally saving result*/
@@ -275,6 +283,19 @@ struct ir_operand *call_emit(struct generator *context, struct call *c,
 	s->arg1 = eval(c->func, context, ADDRESS);
 	emit(context, s);
 	return result != IGNORE ? copy(s->result) : NULL;
+}
+
+/*Deallocates all variables at the end of their scope*/
+void scope_emit(struct generator *context, struct symbol_table *scope)
+{
+	if (!scope) return;
+	/*This screws up CFG creation, so metadata flag?*/
+	for (int i = 0; i < scope->num_syms; i++) {
+		struct ir_stmt *stmt = ir_stmt_init();
+		stmt->type = stmt_dealloc;
+		stmt->result = from_sym(scope->syms[i]);
+		emit(context, stmt);
+	}
 }
 
 /*If the result is asked for, returns either the address or value paired with a symbol*/

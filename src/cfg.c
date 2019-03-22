@@ -21,12 +21,12 @@ struct bb *bb_init(struct ir_stmt *s, struct ir_stmt **next)
 	int len = 1;
 	/*Basic blocks can start at labels but must end at a jump or any label not at the start */
 	while (s) {
-		if (s->type == stmt_cgoto || s->type == stmt_ugoto) {
+		if (s->type == stmt_ret || s->type == stmt_cgoto || s->type == stmt_ugoto) {
 			break;
 		}
-		if (s->type == stmt_label && len != 1) {
+		if ((s->type == stmt_func || s->type == stmt_label) && len != 1) {
 			s = s->prev;
-			len--;
+			//len--;
 			break;
 		}
 		len++;
@@ -124,7 +124,7 @@ int cfg_liveiter(struct bb *bb)
 	int len = 0;
 	while (cur && len < bb->len) {
 		/*Every variable is only accessed through stores & loads*/
-		if (cur->type == stmt_store || cur->type == stmt_load) {
+		if ((cur->type == stmt_store || cur->type == stmt_load) && cur->arg1->type == oper_sym) {
 			int used = in_oper_array(use, nuse, cur->arg1);
 			int defined = in_oper_array(def, ndef, cur->arg1);
 			if (cur->type == stmt_load && !used) {
@@ -281,8 +281,11 @@ void postorder(struct bb *top, int *cnt)
 	(*cnt)--;
 }
 
-struct bb **cfg(struct ir_stmt *entry, int *len)
+struct bb **cfg(struct ir_stmt *e, int *len)
 {
+	static struct ir_stmt *entry = NULL;
+	if (e) entry = e;
+	if (!entry) return NULL;
 	int *labels = NULL;
 	struct bb **bbs = NULL;
 	int nbb = 0;
@@ -292,6 +295,10 @@ struct bb **cfg(struct ir_stmt *entry, int *len)
 	/*Construct basic blocks from linear IR list */
 	while (cur) {
 		int label = -1;
+		/*Each function gets it's own cfg*/
+		if (cur != entry && cur->type == stmt_func) {
+			break;
+		}
 		struct bb *cbb = bb_init(cur, &next);
 		if (nbb && cur->prev) {
 			if (cur->prev->type != stmt_ugoto) {
@@ -308,8 +315,11 @@ struct bb **cfg(struct ir_stmt *entry, int *len)
 		else labels = realloc(labels, sizeof(int) * nbb);
 		labels[nbb - 1] = label;
 
+		if (cur->type == stmt_ret) break;
 		cur = next;
 	}
+	entry = cur;
+	if (!bbs) return NULL;
 	cfg_edge(bbs, nbb, labels);
 	bbs = cfg_dead(bbs, &nbb);
 	cfg_postorder(bbs, nbb);

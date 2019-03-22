@@ -190,8 +190,7 @@ void color_graph(struct vertex **graph, int num, int k)
 				break;
 			}
 		}
-		if (v->ocolor == 17) {
-
+		if (v->ocolor == 8 || v->ocolor == -7) {
 			printf("heyo %d\n", clr);
 			for (int i = 0; i < v->num_siblings; i++) {
 				printf("\tedge v%d R%d\n", v->siblings[i]->ocolor, v->siblings[i]->color);

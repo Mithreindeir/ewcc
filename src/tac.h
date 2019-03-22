@@ -16,7 +16,7 @@
 #define REQ_LABEL(ctx) (ctx->label_cnt++)
 #define RELATIONAL(t) (t >= stmt_lt)
 
-#define NUM_STMT 	27
+#define NUM_STMT 	28
 #define STMT_STR(x) 	stmt_##x
 
 #define unlink(i) {\
@@ -40,7 +40,8 @@
 	STMT(call, 	, 	"$0 = $1()") 	\
 	STMT(ugoto, 	, 	"goto L$l") 	\
 	STMT(cgoto, 	, 	"gotrue L$l") 	\
-	STMT(alloc, 	, 	"alloc $1")	\
+	STMT(alloc, 	, 	"$0 = alloc($1)")	\
+	STMT(dealloc, 	, 	"free($0)")	\
 	/*Move, must be on registers and immediates*/\
 	STMT(move, 	, 	"$0 = $1")\
 	/*Indeterminate Statements bc largely ABI dependent*/\
@@ -134,6 +135,7 @@ void loop_emit(struct generator *context, struct loop *l);
 void decl_emit(struct generator *context, struct declaration *d);
 void block_emit(struct generator *context, struct block *b);
 void func_emit(struct generator *context, struct func *fn);
+void scope_emit(struct generator *context, struct symbol_table *scope);
 struct ir_operand *call_emit(struct generator *context, struct call *c,
 			     int result);
 struct ir_operand *ident_emit(struct generator *context, char *ident,

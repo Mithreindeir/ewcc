@@ -95,6 +95,8 @@ struct vertex **interference(struct bb *blk, struct vertex ** graph, int *num_no
 				continue;
 			int tmp = op[i]->val.virt_reg;
 			int idx = find_node(graph, nvert, tmp);
+			if (tmp == 8) printf("8r = %d %d\n", len, blk->ln);
+			if (tmp == -8) printf("-8r = %d %d\n", len, blk->ln);
 			if (!i && idx == -1) {
 				graph = add_node(graph, &nvert, tmp);
 				graph[nvert-1]->def = len+blk->ln;
@@ -133,8 +135,12 @@ struct ir_stmt *reduce_mem(struct bb **bbs, int nbbs, int idx, struct ir_stmt *c
 		struct ir_stmt *n = cur->prev;
 		unlink(cur);
 		b->len--;
-		for (int i = idx+1; i < nbbs; i++)
+		for (int i = 0; i < nbbs; i++) {
+			if (bbs[i]->ln < b->ln) bbs[i]->ln--;
+		}
+		/*for (int i = idx+1; i < nbbs; i++)
 			bbs[i]->ln--;
+		*/
 		ir_stmt_free(cur);
 		cur = n;
 	} else if (cur->type == stmt_store) {
@@ -145,8 +151,13 @@ struct ir_stmt *reduce_mem(struct bb **bbs, int nbbs, int idx, struct ir_stmt *c
 			struct ir_stmt *n = cur->prev;
 			unlink(cur);
 			b->len--;
+			for (int i = 0; i < nbbs; i++) {
+				if (bbs[i]->ln < b->ln) bbs[i]->ln--;
+			}
+			/*
 			for (int i = idx+1; i < nbbs; i++)
 				bbs[i]->ln--;
+			*/
 			ir_stmt_free(cur);
 			cur = n;
 		} else {
@@ -179,6 +190,7 @@ struct ir_operand **mem2reg(struct bb **bbs, int nbbs, int *num_map) {
 				if (cur->arg1 && cur->arg1->type == oper_sym)
 					mem = cur->arg1;
 			}
+			//if (mem) {
 			if (mem && !mem->val.sym->spilled) {
 				/*Assign reg if not already in one*/
 				int temp = temp_map(map, nmap, mem->val.sym, mem->iter);
@@ -205,10 +217,13 @@ void proc_alloc(struct bb **bbs, int nbbs)
 {
 	int nmap = 0;
 	struct ir_operand **map = mem2reg(bbs, nbbs, &nmap);
-			for (int i = 0; i < nbbs; i++) {
-				bb_debug(bbs[i]);
-			}
 
+			printf("------------------------------------\n");
+			printf("BEFORE Rewriting:\n");
+			for (int i = 0; i < nbbs; i++) {
+					bb_debug(bbs[i]);
+					printf("----------------\n");
+			}
 	/*Then Basic Block local register graphs are made*/
 	struct vertex **vert = NULL;
 	int nvert = 0;
@@ -236,6 +251,11 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	for (int i = 0; i < nvert; i++) {
 		for (int j = 0; j < nvert; j++) {
 			if (j == i) continue;
+			if (vert[j]->ocolor == -8 && vert[i]->ocolor == 8) {
+				printf("RANGE %d %d\n", vert[i]->def, vert[i]->kill);
+				printf("RANGE %d %d\n", vert[j]->def, vert[j]->kill);
+				printf("HWATAASD %d\n", OVERLAP(vert[i], vert[j]));
+			}
 			if (OVERLAP(vert[i], vert[j])) add_edge(vert[i], vert[j]);
 		}
 	}
@@ -259,7 +279,20 @@ void proc_alloc(struct bb **bbs, int nbbs)
 			}
 		}
 	}
+	for (int i = 0; i < nvert; i++) {
+		printf("%d\n", vert[i]->ocolor);
+		for (int j = 0; j  < vert[i]->num_siblings; j++) {
+			printf("\t%d\n", vert[i]->siblings[j]->ocolor);
+		}
 
+	}
+
+	for (int i = 0; i < nvert; i++) {
+
+		if (vert[i]->ocolor == 8 || vert[i]->ocolor == -8) {
+			printf("%d live RANGE %d %d\n", vert[i]->ocolor, vert[i]->def, vert[i]->kill);
+		}
+	}
 	int clrs = 6;
 	color_graph(vert, nvert, clrs);
 	int spill = 0;
@@ -272,6 +305,7 @@ void proc_alloc(struct bb **bbs, int nbbs)
 				printf("Spilling temps isn't allowed yet\n");
 				exit(1);
 			}
+			map[-vert[i]->ocolor-1]->val.sym->spilled = 1;
 			spill = 1;
 		}
 	}
@@ -314,6 +348,63 @@ void proc_alloc(struct bb **bbs, int nbbs)
 	} else {
 		repregs(bbs[0]->blk, vert, nvert);
 	}
+	/*Remove allocation statements for variables in registers*/
+	for (int  i = 0; i < nbbs; i++) {
+		struct ir_stmt *cur = bbs[i]->blk;
+		int len = 0;
+		while (cur && (len < (bbs[i]->len-1))) {
+			if (cur->type == stmt_alloc && cur->result && cur->result->type == oper_sym) {
+				if (!cur->result->val.sym->spilled) {
+					struct ir_stmt *n = cur->next;
+					if (cur->prev) cur->prev->next = n;
+					if (n) n->prev = cur->prev;
+					bbs[i]->len--;
+					ir_stmt_free(cur);
+					cur = n;
+					continue;
+				}
+			}
+			if (cur->type == stmt_dealloc && cur->result && cur->result->type == oper_sym) {
+				if (!cur->result->val.sym->spilled) {
+					struct ir_stmt *n = cur->next;
+					if (cur->prev) cur->prev->next = n;
+					if (n) n->prev = cur->prev;
+					ir_stmt_free(cur);
+					bbs[i]->len--;
+					cur = n;
+					continue;
+				}
+			}
+			len++;
+			cur = cur->next;
+		}
+	}
+	/*
+	struct ir_stmt *cur = bbs[0]->blk;
+	while (cur) {
+		if (cur->type == stmt_alloc && cur->result && cur->result->type == oper_sym) {
+			if (!cur->result->val.sym->spilled) {
+				struct ir_stmt *n = cur->next;
+				if (cur->prev) cur->prev->next = n;
+				if (n) n->prev = cur->prev;
+				ir_stmt_free(cur);
+				cur = n;
+				continue;
+			}
+		}
+		if (cur->type == stmt_dealloc && cur->result && cur->result->type == oper_sym) {
+			if (!cur->result->val.sym->spilled) {
+				struct ir_stmt *n = cur->next;
+				if (cur->prev) cur->prev->next = n;
+				if (n) n->prev = cur->prev;
+				ir_stmt_free(cur);
+				cur = n;
+				continue;
+			}
+		}
+		cur = cur->next;
+	}
+	*/
 	for (int i = 0; i < nmap; i++)
 		ir_operand_free(map[i]);
 	free(map);

@@ -10,6 +10,7 @@
 #include "cfg.h"
 #include "ssa.h"
 #include "x86gen.h"
+#include "memory.h"
 
 int main()
 {
@@ -48,27 +49,38 @@ int main()
 		ir_debug(stmt);
 		int nbbs = 0;
 		printf("------------------------------------\n");
-		struct bb **bbs = cfg(stmt, &nbbs);
-		if (bbs && bbs[0]) {
-			struct bb **doms = calc_dom(bbs, nbbs);
-			calc_df(bbs, doms, nbbs);
-			set_ssa(bbs, nbbs);
-			for (int i = 0; i < nbbs; i++) {
-				bb_debug(bbs[i]);
+		struct bb **bbs = NULL;
+		//struct bb **bbs = cfg(stmt, &nbbs);
+		bbs = cfg(stmt, &nbbs);
+		do {
+			/*bb func separation is getting screwed up here*/
+			if (bbs && bbs[0]) {
+				struct bb **doms = calc_dom(bbs, nbbs);
+				calc_df(bbs, doms, nbbs);
+				set_ssa(bbs, nbbs);
+				proc_alloc(bbs, nbbs);
+				free(doms);
 			}
-			proc_alloc(bbs, nbbs);
-			free(doms);
-		}
+			//optimize(stmt);
+			proc_asn(bbs, nbbs);
+			printf("------------------------------------\n");
+			printf("After Register Rewriting:\n");
+			for (int i = 0; i < nbbs; i++) {
+					bb_debug(bbs[i]);
+					printf("----------------\n");
+			}
+			//ir_debug(stmt);
+			for (int i = 0; bbs && i < nbbs; i++) {
+				bb_free(bbs[i]);
+			}
+			free(bbs);
+			bbs = NULL;
+			printf("------------------------------------\n");
+		} while ((bbs = cfg(NULL, &nbbs)));
+		ir_debug(stmt);
 		optimize(stmt);
 		printf("------------------------------------\n");
-		printf("After Register Rewriting:\n");
-		ir_debug(stmt);
-		for (int i = 0; bbs && i < nbbs; i++) {
-			bb_free(bbs[i]);
-		}
-		free(bbs);
-		printf("------------------------------------\n");
-		//instr(stmt);
+		instr(stmt);
 
 		struct ir_stmt *next = NULL;
 		while (stmt) {

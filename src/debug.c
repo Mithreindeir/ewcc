@@ -39,7 +39,7 @@ void bb_debug(struct bb *bb)
 	printf("\n");
 	struct ir_stmt *stmt = bb->blk;
 	int ln = 0;
-	while (stmt && ln < bb->len) {
+	while (stmt && ln <(bb->len-1)) {
 		printf("%2d: ", ++ln + bb->ln);
 		ir_stmt_debug(stmt);
 		printf("\n");
